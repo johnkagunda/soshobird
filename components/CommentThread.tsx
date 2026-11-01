@@ -120,19 +120,21 @@ function CommentRow({
   const isAuthor = post.user_id === postAuthorId;
   const isOwnPost = user?.id === post.user_id;
 
+  const goToProfile = () => {
+    if (post.user?.id === user?.id) {
+      router.push('/(protected)/(tabs)/profile');
+    } else {
+      router.push(
+        `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(post.user?.username ?? '')}`
+      );
+    }
+  };
+
   return (
     <View style={{ flexDirection: 'row', gap: 10 }}>
       {/* Avatar + optional vertical line */}
       <View style={{ alignItems: 'center', width: 36 }}>
-        <Pressable
-          onPress={() =>
-            router.push(
-              `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(
-                post.user?.username ?? ''
-              )}`
-            )
-          }
-        >
+        <Pressable onPress={goToProfile}>
           <SupabaseImage
             bucket="avatars"
             path={post.user?.avatar_url}
@@ -156,15 +158,7 @@ function CommentRow({
       <View style={{ flex: 1, paddingBottom: 4 }}>
         {/* Name row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginBottom: 1 }}>
-          <Pressable
-            onPress={() =>
-              router.push(
-                `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(
-                  post.user?.username ?? ''
-                )}`
-              )
-            }
-          >
+          <Pressable onPress={goToProfile}>
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
               {post.user?.full_name ?? 'User'}
             </Text>

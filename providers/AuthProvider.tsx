@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { ActivityIndicator } from 'react-native';
 import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Tables } from '@/types/database.types';
 import { getProfileById, upsertProfile } from '@/services/profile';
+import AnimatedSplash from '@/components/AnimatedSplash';
 
 type AuthContextType = {
   user: User | null;
@@ -33,13 +33,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // splashDone: true once the animated splash has finished playing
+  const [splashDone, setSplashDone] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       const existing = await getProfileById(user!.id);
       if (existing) return existing;
-      // Profile row missing (e.g. after a migration wipe) — create it now
       return upsertProfile({
         id: user!.id,
         full_name: user!.user_metadata?.full_name ?? '',
@@ -78,16 +79,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  if (isLoading) {
+  // Show the animated splash until:
+  //   a) auth has resolved (isLoading = false)  AND
+  //   b) the splash animation has finished (splashDone = true)
+  // The splash plays immediately on mount so there's no delay.
+  if (!splashDone || isLoading) {
     return (
-      <View className='flex-1 items-center justify-center'>
-        <ActivityIndicator size='large' />
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        {/* Render children underneath so they're ready when splash fades out */}
+        {!isLoading && (
+          <View style={{ flex: 1 }}>
+            <AuthContext.Provider value={{ user, isAuthenticated, profile: profile ?? null }}>
+              {children}
+            </AuthContext.Provider>
+          </View>
+        )}
+        {/* Splash always renders on top until animation completes */}
+        {!splashDone && (
+          <AnimatedSplash onFinished={() => setSplashDone(true)} />
+        )}
       </View>
     );
   }
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, profile }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, profile: profile ?? null }}>
       {children}
     </AuthContext.Provider>
   );

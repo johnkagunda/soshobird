@@ -30,6 +30,16 @@ dayjs.extend(relativeTime);
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
+  const goToProfile = (userId: string, username: string) => {
+    if (userId === user?.id) {
+      router.push('/(protected)/(tabs)/profile');
+    } else {
+      router.push(
+        `/(protected)/(tabs)/profile/${userId}?username=${encodeURIComponent(username)}`
+      );
+    }
+  };
   const queryClient = useQueryClient();
 
   const lastY = useRef(0);
@@ -83,9 +93,7 @@ export default function NotificationsScreen() {
       <Pressable
         onPress={() => {
           if (item.type === 'follow') {
-            router.push(
-              `/(protected)/(tabs)/profile/${item.actor_id}?username=${encodeURIComponent(actor?.username ?? '')}`
-            );
+            goToProfile(item.actor_id, actor?.username ?? '');
           } else if (item.type === 'post' && item.post_id) {
             router.push(`/posts/${item.post_id}`);
           }

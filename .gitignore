@@ -17,6 +17,9 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Managed workflow — let EAS generate native dirs
+android/
+ios/
 
 # Metro
 .metro-health-check*
