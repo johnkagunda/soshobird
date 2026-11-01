@@ -7,6 +7,7 @@ import PostMenu from './PostMenu';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { likePost, unlikePost, getUserLike } from '@/services/posts';
 import { useAuth } from '@/providers/AuthProvider';
+import { useState, useEffect } from 'react';
 
 dayjs.extend(relativeTime);
 
@@ -24,30 +25,49 @@ export default function PostDetails({
     queryKey: ['likes', post.id, user?.id],
     queryFn: () => getUserLike(post.id, user!.id),
     enabled: !!user,
-    staleTime: 0,
+    staleTime: 30_000, // cache for 30s — avoid constant refetches
   });
+
+  const dbCount: number = post.likes_count ?? 0;
+  const [optimisticOffset, setOptimisticOffset] = useState(0);
+  const [localLiked, setLocalLiked] = useState<boolean | null>(null);
+
+  // localLiked overrides the query result while pending
+  const displayLiked = localLiked !== null ? localLiked : liked;
+  const displayCount = dbCount + optimisticOffset;
 
   const { mutate: toggleLike, isPending } = useMutation({
     mutationFn: () =>
       liked ? unlikePost(post.id, user!.id) : likePost(post.id, user!.id),
     onMutate: async () => {
+      // Cancel any in-flight refetches that would overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ['likes', post.id, user?.id] });
-      const prevLiked = queryClient.getQueryData<boolean>(['likes', post.id, user?.id]);
-      queryClient.setQueryData(['likes', post.id, user?.id], !liked);
-      return { prevLiked };
+      await queryClient.cancelQueries({ queryKey: ['posts', post.id] });
+      const prevLiked = liked;
+      const prevOffset = optimisticOffset;
+      // Flip liked state and count immediately
+      setLocalLiked(!liked);
+      setOptimisticOffset(liked ? -1 : 1);
+      return { prevLiked, prevOffset };
     },
     onError: (_err, _vars, ctx: any) => {
-      queryClient.setQueryData(['likes', post.id, user?.id], ctx?.prevLiked);
+      // Roll back on error
+      setLocalLiked(ctx?.prevLiked ?? null);
+      setOptimisticOffset(ctx?.prevOffset ?? 0);
+    },
+    onSuccess: () => {
+      // Update the likes cache with the correct value
+      queryClient.setQueryData(['likes', post.id, user?.id], !liked);
     },
     onSettled: () => {
+      setLocalLiked(null);
+      setOptimisticOffset(0);
+      // Only refetch this specific post, not the whole feed
       queryClient.invalidateQueries({ queryKey: ['likes', post.id, user?.id] });
       queryClient.invalidateQueries({ queryKey: ['posts', post.id] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 
-  const dbCount: number = post.likes_count ?? 0;
-  const displayCount = isPending ? dbCount + (liked ? -1 : 1) : dbCount;
   const isOwnPost = user?.id === post.user_id;
 
   return (
@@ -118,12 +138,12 @@ export default function PostDetails({
           onPress={() => toggleLike()}
         >
           <Ionicons
-            name={liked ? 'heart' : 'heart-outline'}
+            name={displayLiked ? 'heart' : 'heart-outline'}
             size={22}
-            color={liked ? '#f97316' : '#6b7280'}
+            color={displayLiked ? '#f97316' : '#6b7280'}
           />
-          <Text className={liked ? 'text-brand font-semibold' : 'text-neutral-400'}>
-            Like
+          <Text className={displayLiked ? 'text-brand font-semibold' : 'text-neutral-400'}>
+            {displayLiked ? 'Liked' : 'Like'}
           </Text>
         </Pressable>
 

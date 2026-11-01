@@ -7,7 +7,8 @@ import { getPostById, getPostsReplies } from '@/services/posts';
 import PostDetails from '@/components/PostDetails';
 import CommentThread from '@/components/CommentThread';
 import PostListItem from '@/components/PostListItem';
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { hideTabBar, showTabBar } from '@/components/AnimatedTabBar';
 
 export default function PostDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,12 @@ export default function PostDetailsScreen() {
   }, []);
 
   const clearReplyTo = useCallback(() => setReplyTo(null), []);
+
+  // Hide the tab bar when this screen mounts, restore when it unmounts
+  useEffect(() => {
+    hideTabBar();
+    return () => showTabBar();
+  }, []);
 
   const {
     data: post,

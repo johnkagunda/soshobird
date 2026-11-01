@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { likePost, unlikePost, getUserLike } from '@/services/posts';
 import { useAuth } from '@/providers/AuthProvider';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 dayjs.extend(relativeTime);
 
@@ -29,45 +29,47 @@ export default function PostListItem({
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const [optimisticOffset, setOptimisticOffset] = useState(0);
 
   const { data: liked = false } = useQuery({
     queryKey: ['likes', post.id, user?.id],
     queryFn: () => getUserLike(post.id, user!.id),
     enabled: !!user,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   const dbCount: number = post.likes_count ?? 0;
+  const [optimisticOffset, setOptimisticOffset] = useState(0);
+  const [localLiked, setLocalLiked] = useState<boolean | null>(null);
 
-  // Clear the optimistic offset once the real dbCount catches up
-  useEffect(() => {
-    setOptimisticOffset(0);
-  }, [dbCount]);
+  const displayLiked = localLiked !== null ? localLiked : liked;
+  const displayCount = dbCount + optimisticOffset;
 
   const { mutate: toggleLike, isPending } = useMutation({
     mutationFn: () =>
       liked ? unlikePost(post.id, user!.id) : likePost(post.id, user!.id),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['likes', post.id, user?.id] });
-      const prevLiked = queryClient.getQueryData<boolean>(['likes', post.id, user?.id]);
-      queryClient.setQueryData(['likes', post.id, user?.id], !liked);
-      // `liked` is the OLD value here → +1 for a like, -1 for an unlike
+      await queryClient.cancelQueries({ queryKey: ['posts', post.id] });
+      const prevLiked = liked;
+      const prevOffset = optimisticOffset;
+      setLocalLiked(!liked);
       setOptimisticOffset(liked ? -1 : 1);
-      return { prevLiked };
+      return { prevLiked, prevOffset };
     },
     onError: (_err, _vars, ctx: any) => {
-      queryClient.setQueryData(['likes', post.id, user?.id], ctx?.prevLiked);
-      setOptimisticOffset(0);
+      setLocalLiked(ctx?.prevLiked ?? null);
+      setOptimisticOffset(ctx?.prevOffset ?? 0);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['likes', post.id, user?.id], !liked);
     },
     onSettled: () => {
+      setLocalLiked(null);
+      setOptimisticOffset(0);
       queryClient.invalidateQueries({ queryKey: ['likes', post.id, user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
       queryClient.invalidateQueries({ queryKey: ['posts', post.id] });
     },
   });
-
-  const displayCount = dbCount + optimisticOffset;
   const isOwnPost = user?.id === post.user_id;
 
   const goToProfile = (e: { stopPropagation: () => void }) => {
@@ -186,9 +188,9 @@ export default function PostListItem({
             onPress={(e) => { e.stopPropagation(); toggleLike(); }}
           >
             <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
+              name={displayLiked ? 'heart' : 'heart-outline'}
               size={20}
-              color={liked ? '#f97316' : '#6b7280'}
+              color={displayLiked ? '#f97316' : '#6b7280'}
             />
             <Text className="text-neutral-400 text-xs">{displayCount}</Text>
           </Pressable>

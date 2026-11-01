@@ -18,11 +18,9 @@ const ORANGE = '#f97316';
 /** Build the correct redirect URL for the current platform/environment */
 function getResetRedirectUrl(): string {
   if (Platform.OS === 'web') {
-    // On web, redirect back to the reset-password page on the same origin.
-    // Works for localhost:8081 in dev and any production domain.
+    // Use the current origin — works for both localhost dev and production on Render
     return `${window.location.origin}/auth/reset-password`;
   }
-  // On native, use the deep-link scheme
   return 'soshobird://auth/reset-password';
 }
 
