@@ -10,14 +10,17 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "android": {
-        "buildType": "apk" 
+        "buildType": "apk"
       },
       "ios": {
         "simulator": false
