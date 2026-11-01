@@ -1,9 +1,0 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Remove default browser outline/border on text inputs (React Native Web) */
-input, textarea {
-  outline: none !important;
-  border: none !important;
-}

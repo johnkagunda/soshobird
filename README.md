@@ -1,118 +1,47 @@
-# 🐦 SoshoBird 🔥
+# SoshoBird — Backend
 
+This branch contains only the database schema, migrations, and backend logic for SoshoBird.
 
-*A preview of SoshoBird in action.*
-
-A full-featured **SoshoBird** social app built with **React Native (Expo)** and powered by a modern backend for smooth performance.
-Includes authentication, post creation, commenting, profile editing, and more.
-
----
-
-## 📍 Live Demo
-
-[🔗 View Live Demo](#) *(Coming Soon)*
-
----
-
-## 📸 Features
-
-* **Authentication** – Sign up, log in, and stay signed in securely.
-* **Home Feed** – See posts from all users in a clean, scrollable feed.
-* **Post Details** – View a single post with comments and interactions.
-* **Comment System** – Add, view, and reply to comments.
-* **Profiles** – View user profiles, follow users, and edit your own profile.
-* **Create Posts** – Post your own content with images with ease.
-* **Search** – Find people and posts by keyword.
-* **Share** – Share posts with other apps.
-* **Smooth Navigation** – Seamless transitions between screens.
-
----
-
-## 🚀 Tech Stack
-
-* **Frontend:** React Native (Expo)
-* **Navigation:** Expo Router
-* **Icons:** Ionicons (Expo vector icons)
-* **Backend:** Supabase (PostgreSQL, Auth, Storage)
-
----
-
-## 📂 Folder Structure
+## What's here
 
 ```
-soshobird/
-│
-├── components/      # Reusable UI components  
-├── app/             # App screens (Home, Profile, Post Details, etc.)  
-├── assets/          # Images, fonts, icons  
-├── providers/       # Auth and notifications providers  
-├── services/        # Posts and profile services
-├── types/           # Posts and profile types  
-├── lib/             # Supabase lib
-├── hooks/           
-├── constants/       # Colors    
-└── App.js           # App entry point
+scripts/
+├── migration.sql              # Full schema: profiles, posts, likes, follows
+├── follows_migration.sql      # Follows table + triggers
+├── notifications_migration.sql # Notifications table + realtime triggers
+├── replies_count_migration.sql # replies_count column + triggers
+├── reply_to_migration.sql      # reply_to_id column
+├── storage_policies.sql       # Supabase Storage RLS policies
+└── apply_storage_policies.mjs # Script to apply storage policies via API
+
+lib/
+└── supabase.ts                # Supabase client config
+
+types/
+└── database.types.ts          # Auto-generated Supabase TypeScript types
 ```
 
----
+## Setup
 
-## 🛠 Installation & Setup
+1. Create a [Supabase](https://supabase.com) project
+2. Copy `.env.example` → `.env` and fill in your project URL + keys
+3. Run each SQL file in the Supabase SQL Editor in this order:
+   - `migration.sql`
+   - `storage_policies.sql`
+   - `notifications_migration.sql`
+   - `replies_count_migration.sql`
+4. Create two Storage buckets in the Supabase dashboard:
+   - `avatars` (public)
+   - `media` (public)
 
-```bash
-# Clone this repo
-git clone https://github.com/chinonsochikelue/soshobird.git
+## Database schema
 
-# Go into the project folder
-cd soshobird
+- **profiles** — user profiles, auto-created on signup via trigger
+- **posts** — posts and replies (`parent_id` for threading, `reply_to_id` for specific reply targeting)
+- **likes** — junction table; triggers keep `likes_count` in sync
+- **follows** — junction table; triggers keep `followers_count`/`following_count` in sync
+- **notifications** — follow + post notifications; Supabase Realtime enabled
 
-# Install dependencies
-npm install
+## Frontend
 
-# Create new file at the root folder named .env and add 
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Configure your Supabase tables and storage (see scripts/ folder for migrations)
-
-# Run the app
-npx expo start
-```
-
----
-
-## 💡 Contributing
-
-Contributions are welcome! 💖 You can help in many ways:
-
-### Code Contributions
-
-1. Fork the repo 🍴
-2. Create a feature branch 🌱
-3. Make your changes 💻
-4. Open a pull request 🚀
-
-### Non-Code Contributions
-
-* ⭐ Star this repo
-* 📢 Share the repo link on your socials
-* 🫶 Like and comment on the project posts
-* 🎥 Make a short demo/review video
-
----
-
-## 👥 Contributors
-
-* **Chinonso Chikelue** – Creator & Lead Developer
-* You? 😉 *(Open a PR to be listed here!)*
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License** – free to use and modify.
-
----
-
-**Chinonso Chikelue** ✨
-*"Code it till it's real."*
+See the `frontend` branch for the React Native (Expo) app.
