@@ -1,66 +1,64 @@
-# 🐦 SoshoBird 🔥
+# SoshoBird
 
-
-*A preview of SoshoBird in action.*
-
-A full-featured **SoshoBird** social app built with **React Native (Expo)** and powered by a modern backend for smooth performance.
-Includes authentication, post creation, commenting, profile editing, and more.
+A full-featured social app built with React Native (Expo) and powered by Supabase.
+Includes authentication, post creation, commenting, profiles, follows, notifications, and more.
 
 ---
 
-## 📍 Live Demo
+## Live Demo
 
-[🔗 View Live Demo](#) *(Coming Soon)*
-
----
-
-## 📸 Features
-
-* **Authentication** – Sign up, log in, and stay signed in securely.
-* **Home Feed** – See posts from all users in a clean, scrollable feed.
-* **Post Details** – View a single post with comments and interactions.
-* **Comment System** – Add, view, and reply to comments.
-* **Profiles** – View user profiles, follow users, and edit your own profile.
-* **Create Posts** – Post your own content with images with ease.
-* **Search** – Find people and posts by keyword.
-* **Share** – Share posts with other apps.
-* **Smooth Navigation** – Seamless transitions between screens.
+[View Live Demo](#) *(Coming Soon)*
 
 ---
 
-## 🚀 Tech Stack
+## Features
 
-* **Frontend:** React Native (Expo)
-* **Navigation:** Expo Router
-* **Icons:** Ionicons (Expo vector icons)
-* **Backend:** Supabase (PostgreSQL, Auth, Storage)
+- **Authentication** – Sign up, log in, and stay signed in securely.
+- **Home Feed** – See posts from all users in a clean, scrollable feed.
+- **Post Details** – View a single post with comments and interactions.
+- **Comment System** – Add, view, and reply to comments with thread tracing.
+- **Profiles** – View user profiles, follow users, and edit your own profile.
+- **Create Posts** – Post your own content with images.
+- **Search** – Find people and posts by keyword.
+- **Discover** – Browse top posts by engagement in a 2x2 grid.
+- **Notifications** – Get notified when someone follows you or a followed user posts.
+- **Share** – Share posts with other apps.
 
 ---
 
-## 📂 Folder Structure
+## Tech Stack
+
+- **Frontend:** React Native (Expo)
+- **Navigation:** Expo Router
+- **Styling:** NativeWind (Tailwind CSS)
+- **Icons:** Ionicons via @expo/vector-icons
+- **Backend:** Supabase (PostgreSQL, Auth, Realtime, Storage)
+- **State:** TanStack Query
+
+---
+
+## Folder Structure
 
 ```
 soshobird/
-│
-├── components/      # Reusable UI components  
-├── app/             # App screens (Home, Profile, Post Details, etc.)  
-├── assets/          # Images, fonts, icons  
-├── providers/       # Auth and notifications providers  
-├── services/        # Posts and profile services
-├── types/           # Posts and profile types  
-├── lib/             # Supabase lib
-├── hooks/           
-├── constants/       # Colors    
-└── App.js           # App entry point
+├── app/             # Screens (Expo Router file-based routing)
+├── components/      # Reusable UI components
+├── providers/       # Auth and notifications providers
+├── services/        # Supabase data access functions
+├── types/           # TypeScript database types
+├── lib/             # Supabase client config
+├── assets/          # Images and fonts
+├── scripts/         # SQL migrations (run in Supabase SQL Editor)
+└── constants/       # Colors and theme
 ```
 
 ---
 
-## 🛠 Installation & Setup
+## Installation & Setup
 
 ```bash
 # Clone this repo
-git clone https://github.com/chinonsochikelue/soshobird.git
+git clone https://github.com/johnkagunda/soshobird.git
 
 # Go into the project folder
 cd soshobird
@@ -68,12 +66,8 @@ cd soshobird
 # Install dependencies
 npm install
 
-# Create new file at the root folder named .env and add 
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Configure your Supabase tables and storage (see scripts/ folder for migrations)
+# Copy the env template and fill in your Supabase project details
+cp .env.example .env
 
 # Run the app
 npx expo start
@@ -81,38 +75,40 @@ npx expo start
 
 ---
 
-## 💡 Contributing
+## Database Setup
 
-Contributions are welcome! 💖 You can help in many ways:
+Run the SQL files in `scripts/` in this order inside the Supabase SQL Editor:
 
-### Code Contributions
+1. `migration.sql` — core schema (profiles, posts, likes, follows)
+2. `storage_policies.sql` — storage RLS policies
+3. `notifications_migration.sql` — notifications table and realtime triggers
+4. `replies_count_migration.sql` — reply count column and triggers
 
-1. Fork the repo 🍴
-2. Create a feature branch 🌱
-3. Make your changes 💻
-4. Open a pull request 🚀
-
-### Non-Code Contributions
-
-* ⭐ Star this repo
-* 📢 Share the repo link on your socials
-* 🫶 Like and comment on the project posts
-* 🎥 Make a short demo/review video
+Then create two public Storage buckets in the Supabase dashboard: `avatars` and `media`.
 
 ---
 
-## 👥 Contributors
+## Branches
 
-* **Chinonso Chikelue** – Creator & Lead Developer
-* You? 😉 *(Open a PR to be listed here!)*
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License** – free to use and modify.
+| Branch | Contents |
+|--------|----------|
+| `main` | Full project |
+| `frontend` | React Native app only |
+| `backend` | DB migrations and Supabase config only |
 
 ---
 
-**Chinonso Chikelue** ✨
-*"Code it till it's real."*
+## Contributing
+
+Contributions are welcome. To contribute:
+
+1. Fork the repo
+2. Create a feature branch
+3. Make your changes
+4. Open a pull request
+
+---
+
+## License
+
+MIT License — free to use and modify.
