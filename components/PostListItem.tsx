@@ -70,6 +70,17 @@ export default function PostListItem({
   const displayCount = dbCount + optimisticOffset;
   const isOwnPost = user?.id === post.user_id;
 
+  const goToProfile = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    if (post.user?.id === user?.id) {
+      router.push('/(protected)/(tabs)/profile');
+    } else {
+      router.push(
+        `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(post.user?.username ?? '')}`
+      );
+    }
+  };
+
   const content: string = post.content ?? '';
   const isLong = content.length > MAX_CHARS;
   const displayedContent = isLong && !expanded
@@ -84,16 +95,7 @@ export default function PostListItem({
     >
       {/* Avatar + reply line */}
       <View className="mr-3 items-center" style={{ width: 44 }}>
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation();
-            router.push(
-              `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(
-                post.user?.username ?? ''
-              )}`
-            );
-          }}
-        >
+        <Pressable onPress={goToProfile}>
           <SupabaseImage
             bucket="avatars"
             path={post.user?.avatar_url}
@@ -110,16 +112,7 @@ export default function PostListItem({
       <View className="flex-1 pb-1">
         {/* Header row: name + time + menu */}
         <View className="flex-row items-center">
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push(
-                `/(protected)/(tabs)/profile/${post.user?.id}?username=${encodeURIComponent(
-                  post.user?.username ?? ''
-                )}`
-              );
-            }}
-          >
+          <Pressable onPress={goToProfile}>
             <Text className="text-white font-semibold text-sm">
               {post.user?.full_name}
             </Text>
