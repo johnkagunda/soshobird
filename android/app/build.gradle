@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.visioraneft.threads'
+    namespace 'com.visioraneft.soshobird'
     defaultConfig {
-        applicationId 'com.visioraneft.threads'
+        applicationId 'com.visioraneft.soshobird'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

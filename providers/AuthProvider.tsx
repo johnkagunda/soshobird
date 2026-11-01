@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { ActivityIndicator } from 'react-native';
 import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Tables } from '@/types/database.types';
-import { getProfileById } from '@/services/profile';
+import { getProfileById, upsertProfile } from '@/services/profile';
 
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
-  profile: Tables<'profiles'> | null;
+  profile: Tables<'profiles'> | null | undefined;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -36,7 +36,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
-    queryFn: () => getProfileById(user!.id),
+    queryFn: async () => {
+      const existing = await getProfileById(user!.id);
+      if (existing) return existing;
+      // Profile row missing (e.g. after a migration wipe) — create it now
+      return upsertProfile({
+        id: user!.id,
+        full_name: user!.user_metadata?.full_name ?? '',
+        avatar_url: user!.user_metadata?.avatar_url ?? null,
+        username: user!.user_metadata?.username ?? null,
+      });
+    },
+    enabled: !!user,
   });
 
   useEffect(() => {

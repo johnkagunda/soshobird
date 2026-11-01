@@ -1,8 +1,10 @@
-import { View, Text, Image, Alert, Pressable } from 'react-native';
+import { View, Pressable, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import SupabaseImage from './SupabaseImage';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function UserAvatarPicker({
   currentAvatar,
@@ -12,58 +14,64 @@ export default function UserAvatarPicker({
   onUpload: (path: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
 
   async function uploadAvatar() {
     try {
       setUploading(true);
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // Restrict to only images
-        allowsMultipleSelection: false, // Can only select one image
-        allowsEditing: true, // Allows the user to crop / rotate their photo before uploading it
-        quality: 1,
-        exif: false, // We don't want nor need that data.
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
       });
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('User cancelled image picker.');
-        return;
-      }
+
+      if (result.canceled || !result.assets?.length) return;
+
       const image = result.assets[0];
-      console.log('Got image', image);
-      if (!image.uri) {
-        throw new Error('No image uri!'); // Realistically, this should never happen, but just in case...
-      }
-      const arraybuffer = await fetch(image.uri).then((res) =>
-        res.arrayBuffer()
-      );
-      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
-      const path = `${Date.now()}.${fileExt}`;
-      const { data, error: uploadError } = await supabase.storage
+      if (!image.uri) throw new Error('No image URI returned');
+
+      const mimeType = image.mimeType ?? 'image/jpeg';
+      // Derive extension from mimeType — blob: URIs on web don't have file extensions
+      const fileExt = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+      const path = `${user?.id ?? 'anon'}/${Date.now()}.${fileExt}`;
+
+      const arrayBuffer = await fetch(image.uri).then((r) => r.arrayBuffer());
+
+      const { data, error } = await supabase.storage
         .from('avatars')
-        .upload(path, arraybuffer, {
-          contentType: image.mimeType ?? 'image/jpeg',
+        .upload(path, arrayBuffer, {
+          contentType: mimeType,
+          upsert: true,
         });
-      if (uploadError) {
-        throw uploadError;
-      }
+
+      if (error) throw error;
       onUpload(data.path);
-    } catch (error) {
-      if (error instanceof Error) {
-        Alert.alert(error.message);
-      } else {
-        throw error;
-      }
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.message ?? 'Could not upload avatar');
     } finally {
       setUploading(false);
     }
   }
 
   return (
-    <Pressable onPress={uploadAvatar} className='self-center'>
-      <SupabaseImage
-        bucket='avatars'
-        path={currentAvatar}
-        className='w-24 h-24 rounded-full self-center'
-      />
+    <Pressable onPress={uploadAvatar} disabled={uploading} className="self-center">
+      <View className="relative">
+        <SupabaseImage
+          bucket="avatars"
+          path={currentAvatar}
+          className="w-24 h-24 rounded-full"
+          transform={{ width: 96, height: 96 }}
+        />
+        {/* Edit overlay */}
+        <View className="absolute bottom-0 right-0 bg-brand rounded-full p-1.5 border-2 border-surface">
+          {uploading
+            ? <ActivityIndicator size={14} color="#fff" />
+            : <Ionicons name="camera" size={14} color="#fff" />
+          }
+        </View>
+      </View>
     </Pressable>
   );
 }

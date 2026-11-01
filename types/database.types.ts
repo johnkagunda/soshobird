@@ -34,32 +34,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reposts: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           content: string | null
           created_at: string
           id: string
+          images: string[] | null
+          likes_count: number
           parent_id: string | null
+          reply_to_id: string | null
+          reposts_count: number
           user_id: string
         }
         Insert: {
           content?: string | null
           created_at?: string
           id?: string
+          images?: string[] | null
+          likes_count?: number
           parent_id?: string | null
+          reply_to_id?: string | null
+          reposts_count?: number
           user_id: string
         }
         Update: {
           content?: string | null
           created_at?: string
           id?: string
+          images?: string[] | null
+          likes_count?: number
           parent_id?: string | null
+          reply_to_id?: string | null
+          reposts_count?: number
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "posts_parent_id_fkey"
             columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_reply_to_id_fkey"
+            columns: ["reply_to_id"]
             isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
@@ -76,24 +173,45 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
+          created_at: string
+          followers_count: number
+          following_count: number
           full_name: string | null
           id: string
+          is_verified: boolean
+          location: string | null
+          push_token: string | null
           updated_at: string | null
           username: string | null
           website: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          followers_count?: number
+          following_count?: number
           full_name?: string | null
           id: string
+          is_verified?: boolean
+          location?: string | null
+          push_token?: string | null
           updated_at?: string | null
           username?: string | null
           website?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          followers_count?: number
+          following_count?: number
           full_name?: string | null
           id?: string
+          is_verified?: boolean
+          location?: string | null
+          push_token?: string | null
           updated_at?: string | null
           username?: string | null
           website?: string | null

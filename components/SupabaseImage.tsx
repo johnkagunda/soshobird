@@ -1,52 +1,66 @@
 import { supabase } from '@/lib/supabase';
-import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, Image, Text, View } from 'react-native';
+import { Image, ImageStyle, StyleProp, View, Text } from 'react-native';
 
-const downloadImage = async (
-  bucket: string,
-  path: string,
-  transform: { width: number; height: number } | undefined
-): Promise<string> => {
-  return new Promise(async (resolve, reject) => {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .download(path, { transform });
-    if (error) {
-      return reject(error);
-    }
-    const fr = new FileReader();
-    fr.readAsDataURL(data);
-    fr.onload = () => {
-      resolve(fr.result as string);
-    };
-  });
-};
+function isDirectUri(path: string): boolean {
+  return (
+    path.startsWith('data:') ||
+    path.startsWith('blob:') ||
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('file://')
+  );
+}
+
+function getPublicUrl(bucket: string, path: string): string {
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
 
 export default function SupabaseImage({
   bucket,
   path,
   className,
-  transform,
+  style,
+  transform: _transform,
 }: {
   bucket: string;
-  path: string;
-  className: string;
-  transform: { width: number; height: number } | undefined;
+  path?: string | null;
+  className?: string;
+  style?: StyleProp<ImageStyle>;
+  transform?: { width: number; height: number };
 }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['supabaseImage', { bucket, path, transform }],
-    queryFn: () => downloadImage(bucket, path, transform),
-    staleTime: 1000 * 60 * 60 * 24,
-  });
+  if (!path) {
+    // For avatars with no image, show a bird emoji placeholder
+    if (bucket === 'avatars') {
+      const emojiSize = _transform ? _transform.width * 0.5 : 22;
+      return (
+        <View
+          className={className}
+          style={[
+            { backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' },
+            style,
+          ]}
+        >
+          <Text style={{ fontSize: emojiSize }}>🐦</Text>
+        </View>
+      );
+    }
+    return (
+      <Image
+        source={undefined}
+        className={className ? `${className} bg-neutral-900` : undefined}
+        style={[{ backgroundColor: '#1a1a1a' }, style]}
+      />
+    );
+  }
 
-  // if (error) return <Text className='text-white'>Error: {error.message}</Text>;
+  const uri = isDirectUri(path) ? path : getPublicUrl(bucket, path);
 
   return (
     <Image
-      source={{
-        uri: data || undefined,
-      }}
-      className={`${className} bg-neutral-900`}
+      source={{ uri }}
+      className={className ? `${className} bg-neutral-900` : undefined}
+      style={[{ backgroundColor: '#1a1a1a' }, style]}
     />
   );
 }

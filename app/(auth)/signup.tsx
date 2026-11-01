@@ -14,6 +14,37 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * Generate a unique username from the email prefix.
+ * e.g. "john.doe@example.com" → "johndoe" or "johndoe4821" if taken.
+ */
+async function generateUniqueUsername(email: string): Promise<string> {
+  const base = email
+    .split('@')[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 20);
+
+  if (!base) return `user${Math.floor(Math.random() * 90000) + 10000}`;
+
+  let username = base;
+  for (let i = 0; i < 10; i++) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (!data) return username; // available
+
+    // Taken — append random 4-digit number
+    username = `${base}${Math.floor(Math.random() * 9000) + 1000}`;
+  }
+
+  // Fallback after 10 attempts
+  return `${base}${Date.now().toString().slice(-6)}`;
+}
+
 export default function SignUpScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -28,10 +59,16 @@ export default function SignUpScreen() {
         try {
             setIsLoading(true);
 
+            const username = await generateUniqueUsername(email);
+
             const {
                 data: { session },
                 error,
-            } = await supabase.auth.signUp({ email, password });
+            } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { username } },
+            });
 
             if (error) Alert.alert(error.message);
 
@@ -53,14 +90,14 @@ export default function SignUpScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
                     <View className="flex-1 justify-center px-6">
-                        {/* Threads Logo and Title */}
+                        {/* SoshoBird Logo and Title */}
                         <View className="items-center mb-10">
                             <Image
                                 source={require('@/assets/images/icon.png')}
                                 style={{ width: 120, height: 120 }}
                                 resizeMode="contain"
                             />
-                            <Text className="text-4xl font-black text-white tracking-tight mb-2">threads</Text>
+                            <Text className="text-4xl font-black text-white tracking-tight mb-2">SoshoBird</Text>
                         </View>
 
                         <View className="w-full max-w-sm mx-auto">

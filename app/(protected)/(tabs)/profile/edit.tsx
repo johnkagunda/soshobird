@@ -24,18 +24,21 @@ export default function ProfileEditScreen() {
   } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: () => getProfileById(user!.id),
+    enabled: !!user,
   });
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () =>
-      updateProfile(user!.id, {
+    mutationFn: () => {
+      if (!user) throw new Error('Not authenticated');
+      return updateProfile(user.id, {
         full_name: fullName,
         username,
         bio,
         avatar_url: avatarUrl,
         location,
         website,
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
       router.back();

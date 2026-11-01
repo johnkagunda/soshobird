@@ -9,34 +9,58 @@ import {
   Platform,
   Alert,
   Image,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/providers/AuthProvider';
-import { Entypo } from '@expo/vector-icons';
+import { Entypo, Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { createPost } from '@/services/posts';
 import * as ImagePicker from 'expo-image-picker';
 import SupabaseImage from '@/components/SupabaseImage';
 
+async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
+  // On web the URI is already a blob/data URL — fetch handles it fine.
+  // On native it's a file:// URI — fetch also handles it.
+  const response = await fetch(uri);
+  return response.arrayBuffer();
+}
+
 export default function NewPostScreen() {
   const [text, setText] = useState('');
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
-
   const { user, profile } = useAuth();
-
   const queryClient = useQueryClient();
+
+  const uploadImage = async (): Promise<string | undefined> => {
+    if (!image) return;
+
+      const mimeType = image.mimeType ?? 'image/jpeg';
+      // Derive extension from mimeType — blob: URIs don't have file extensions
+      const fileExt = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+      const path = `${user!.id}/${Date.now()}.${fileExt}`;
+
+    const arrayBuffer = await uriToArrayBuffer(image.uri);
+
+    const { data, error } = await supabase.storage
+      .from('media')
+      .upload(path, arrayBuffer, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+    if (error) throw error;
+    return data.path;
+  };
 
   const { mutate, isPending, error } = useMutation({
     mutationFn: async () => {
-      let imagePath = undefined;
-      if (image) {
-        imagePath = await uploadImage();
-      }
-
+      if (!user) throw new Error('Not authenticated');
+      const imagePath = image ? await uploadImage() : undefined;
       return createPost({
-        content: text,
-        user_id: user!.id,
+        content: text.trim(),
+        user_id: user.id,
         images: imagePath ? [imagePath] : [],
       });
     },
@@ -46,119 +70,111 @@ export default function NewPostScreen() {
       router.back();
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
-    onError: (error) => {
-      Alert.alert('Error', error.message);
+    onError: (err: Error) => {
+      Alert.alert('Error posting', err.message);
     },
   });
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      quality: 1,
+      quality: 0.8,
     });
-
-    if (!result.canceled) {
-      setImage(result.assets[0]);
-    }
-  };
-
-  const uploadImage = async () => {
-    if (!image) return;
-    const arraybuffer = await fetch(image.uri).then((res) => res.arrayBuffer());
-
-    const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
-    const path = `${Date.now()}.${fileExt}`;
-
-    const { data, error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(path, arraybuffer, {
-        contentType: image.mimeType ?? 'image/jpeg',
-      });
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    return data.path;
+    if (!result.canceled) setImage(result.assets[0]);
   };
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-black px-4">
+    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} className="flex-1 bg-surface px-5">
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 140 : 0}
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between py-2">
-          <Text className="text-white text-xl font-bold">Create Thread</Text>
+        {/* Header — close + title + post button */}
+        <View className="flex-row items-center justify-between py-3 border-b border-surface-border">
+          <View className="flex-row items-center gap-3">
+            <Pressable onPress={() => router.back()} hitSlop={8}>
+              <Ionicons name="close" size={26} color="#fff" />
+            </Pressable>
+            <Text className="text-white text-lg font-bold">New Sosho</Text>
+          </View>
           <Pressable
             onPress={() => mutate()}
-            className={`${
-              isPending ? 'bg-white/50' : 'bg-white'
-            } px-5 py-2 rounded-full`}
             disabled={isPending || !text.trim()}
+            className={`px-5 py-2 rounded-full ${
+              isPending || !text.trim() ? 'bg-brand/40' : 'bg-brand'
+            }`}
           >
-            <Text className="text-black font-bold text-base">
-              {isPending ? 'Posting...' : 'Post'}
+            <Text className="text-white font-bold text-sm">
+              {isPending ? 'Posting…' : 'Post'}
             </Text>
           </Pressable>
         </View>
 
-        {/* User and Input */}
-        <View className="flex-row gap-3 mt-4">
-          <SupabaseImage
-            bucket="avatars"
-            path={profile?.avatar_url}
-            className="w-12 h-12 rounded-full"
-            transform={{ width: 48, height: 48 }}
-          />
-          <View className="flex-1">
-            <Text className="text-white font-bold text-base mb-1">
-              {profile?.full_name}
-            </Text>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder="Start a thread..."
-              placeholderTextColor="#a3a3a3"
-              className="text-white text-lg min-h-[80px] mb-2"
-              multiline
-              numberOfLines={4}
-              style={{ textAlignVertical: 'top' }}
+        <ScrollView className="flex-1 mt-4" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View className="flex-row gap-3">
+            <SupabaseImage
+              bucket="avatars"
+              path={profile?.avatar_url}
+              className="w-11 h-11 rounded-full"
+              transform={{ width: 44, height: 44 }}
             />
-            {image && (
-              <Image
-                source={{ uri: image.uri }}
-                className="w-full rounded-xl mb-3"
-                style={{
-                  aspectRatio: image.width / image.height,
-                  maxHeight: 250,
-                  backgroundColor: '#171717',
-                }}
+            <View className="flex-1">
+              <Text className="text-white font-bold text-base mb-1">
+                {profile?.full_name ?? 'You'}
+              </Text>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="What's on your mind?"
+                placeholderTextColor="#6b7280"
+                className="text-white text-base"
+                multiline
+                autoFocus
+                style={{ textAlignVertical: 'top', maxHeight: 200, minHeight: 80, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 }}
               />
-            )}
-            <View className="flex-row items-center gap-2 mt-2">
-              <Pressable
-                onPress={pickImage}
-                className="p-2 rounded-full bg-neutral-900"
-              >
-                <Entypo name="images" size={22} color="#a3a3a3" />
-              </Pressable>
+
+              {/* Selected image preview */}
               {image && (
+                <View className="mt-2 mb-3">
+                  <Image
+                    source={{ uri: image.uri }}
+                    className="w-full rounded-xl"
+                    style={{
+                      aspectRatio: image.width && image.height
+                        ? image.width / image.height
+                        : 1,
+                      maxHeight: 260,
+                      backgroundColor: '#1a1a1a',
+                    }}
+                  />
+                  <Pressable
+                    onPress={() => setImage(null)}
+                    className="absolute top-2 right-2 bg-black/60 rounded-full p-1"
+                  >
+                    <Ionicons name="close" size={18} color="#fff" />
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Toolbar */}
+              <View className="flex-row items-center gap-3 mt-2">
                 <Pressable
-                  onPress={() => setImage(null)}
-                  className="p-2 rounded-full bg-neutral-900"
+                  onPress={pickImage}
+                  className="flex-row items-center gap-1 p-2 rounded-full bg-surface-raised"
                 >
-                  <Entypo name="cross" size={22} color="#ef4444" />
+                  <Entypo name="images" size={20} color="#f97316" />
+                  <Text className="text-neutral-400 text-xs">Photo</Text>
                 </Pressable>
+              </View>
+
+              {error && (
+                <Text className="text-red-400 text-sm mt-2">{error.message}</Text>
               )}
             </View>
-            {error && (
-              <Text className="text-red-500 text-sm mt-2">{error.message}</Text>
-            )}
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

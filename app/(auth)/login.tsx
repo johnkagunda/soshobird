@@ -73,14 +73,14 @@ export default function LoginScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 > */}
                     <View className="flex-1 justify-center px-6">
-                        {/* Threads Logo and Title */}
+                        {/* SoshoBird Logo and Title */}
                         <View className="items-center mt-10 mb-10">
                             <Image
                                 source={require('@/assets/images/icon.png')}
                                 style={{ width: 120, height: 120 }}
                                 resizeMode="contain"
                             />
-                            <Text className="text-4xl font-black text-white tracking-tight mb-2">threads</Text>
+                            <Text className="text-4xl font-black text-white tracking-tight mb-2">SoshoBird</Text>
                         </View>
 
                         <View className="w-full max-w-sm mx-auto">

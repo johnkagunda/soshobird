@@ -1,4 +1,4 @@
-package com.visioraneft.threads
+package com.visioraneft.soshobird
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

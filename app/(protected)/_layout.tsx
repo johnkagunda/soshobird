@@ -1,7 +1,14 @@
 import React from 'react'
-import { Stack } from 'expo-router'
+import { Stack, Redirect } from 'expo-router'
+import { useAuth } from '@/providers/AuthProvider'
 
 export default function ProtectedLayout() {
+  const { isAuthenticated } = useAuth()
+
+  if (!isAuthenticated) {
+    return <Redirect href='/(auth)/login' />
+  }
+
   return (
     <Stack>
       <Stack.Screen
@@ -11,9 +18,10 @@ export default function ProtectedLayout() {
       <Stack.Screen
         name='new'
         options={{
-          title: 'New Thread',
+          title: 'New Post',
           presentation: 'modal',
-          animation: 'slide_from_bottom'
+          animation: 'slide_from_bottom',
+          headerShown: false,
         }}
       />
     </Stack>

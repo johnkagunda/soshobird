@@ -1,4 +1,4 @@
-package com.visioraneft.threads
+package com.visioraneft.soshobird
 
 import android.app.Application
 import android.content.res.Configuration
@@ -24,7 +24,7 @@ class MainApplication : Application(), ReactApplication {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages
             // Packages that cannot be autolinked yet can be added manually here, for example:
-            // packages.add(MyReactNativePackage())
+            // packages.add(MyReactPackage())
             return packages
           }
 

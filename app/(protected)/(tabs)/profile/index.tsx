@@ -1,50 +1,41 @@
-import { ActivityIndicator, FlatList, Text, View, Animated } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { getPostsByUserId } from '@/services/posts';
 import PostListItem from '@/components/PostListItem';
 import ProfileHeader from '@/components/ProfileHeader';
-import { useRef } from 'react';
 
 export default function ProfileScreen() {
   const { user } = useAuth();
 
-  const {
-    data: posts,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: posts, isLoading } = useQuery({
     queryKey: ['posts', { user_id: user?.id }],
     queryFn: () => getPostsByUserId(user!.id),
+    enabled: !!user,
   });
 
-  // Animation setup
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
-
-
-  if (isLoading) return <ActivityIndicator />;
-  if (error) return <Text className='text-white'>Error: {error.message}</Text>;
-
   return (
-    <View className='flex-1 justify-center'>
+    <View className="flex-1 bg-surface">
       <FlatList
-        data={posts}
+        data={posts ?? []}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => <PostListItem post={item} />}
+        contentContainerStyle={{ paddingBottom: 100 }}
         ListHeaderComponent={() => (
           <>
             <ProfileHeader />
-            <Text className='text-white text-lg font-bold mt-4 m-2'>
-              Threads
+            <Text className="text-white text-sm font-semibold px-4 py-3 border-b border-surface-border">
+              Posts
             </Text>
           </>
         )}
+        ListEmptyComponent={() =>
+          isLoading ? (
+            <ActivityIndicator color="#f97316" className="mt-10" />
+          ) : (
+            <Text className="text-neutral-500 text-center mt-10">No posts yet.</Text>
+          )
+        }
       />
     </View>
   );
