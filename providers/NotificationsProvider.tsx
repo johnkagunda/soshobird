@@ -108,6 +108,18 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
 
           if (n.type === 'follow') {
             showBanner(`${actorName} started following you 🐦`, undefined, 'follow');
+            // Also fire a local system notification so it appears in the shade
+            if (Platform.OS !== 'web') {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: 'New follower',
+                  body: `${actorName} started following you`,
+                  sound: 'default',
+                  data: { type: 'follow' },
+                },
+                trigger: null,
+              });
+            }
           } else if (n.type === 'post') {
             let body = '';
             if (n.post_id) {
@@ -119,6 +131,17 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
               body = post?.content?.slice(0, 100) ?? '';
             }
             showBanner(`${actorName} posted`, body || undefined, 'post');
+            if (Platform.OS !== 'web') {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: `${actorName} posted`,
+                  body: body || 'Check out the new post',
+                  sound: 'default',
+                  data: { type: 'post', post_id: n.post_id },
+                },
+                trigger: null,
+              });
+            }
           }
 
           // Refresh the notifications list query
