@@ -24,12 +24,14 @@ import {
   markAllNotificationsAsRead,
   NotificationItem,
 } from '@/services/notifications';
+import { useNotificationBanner } from '@/components/NotificationBanner';
 
 dayjs.extend(relativeTime);
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { showBanner } = useNotificationBanner();
 
   const goToProfile = (userId: string, username: string) => {
     if (userId === user?.id) {
@@ -176,13 +178,23 @@ export default function NotificationsScreen() {
           )}
         </Text>
 
-        {unreadCount > 0 && (
-          <Pressable onPress={() => markAllRead()} hitSlop={8}>
-            <Text style={{ color: '#f97316', fontSize: 14, fontWeight: '600' }}>
-              Mark all read
-            </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {/* Test button — tap to verify banner works */}
+          <Pressable
+            onPress={() => showBanner('Test notification 🐦', 'Banner is working!', 'follow')}
+            hitSlop={8}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#f97316" />
           </Pressable>
-        )}
+
+          {unreadCount > 0 && (
+            <Pressable onPress={() => markAllRead()} hitSlop={8}>
+              <Text style={{ color: '#f97316', fontSize: 14, fontWeight: '600' }}>
+                Mark all read
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* List */}

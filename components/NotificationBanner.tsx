@@ -1,13 +1,9 @@
 /**
  * NotificationBanner — cross-platform in-app notification popup.
  *
- * Renders as an absolutely-positioned card that slides in from the top,
- * stays for 4 seconds, then slides back out. Works identically on Android
- * and web — no permissions required, no Expo Go restrictions.
- *
- * Usage:
- *   const { showBanner } = useNotificationBanner();
- *   showBanner('John posted', 'Check out their latest update');
+ * Android: uses RootSibling (react-native-root-siblings) to render
+ *          outside the normal view hierarchy, so it appears over everything.
+ * Web:     uses position:fixed so it always floats at the top of the viewport.
  */
 import {
   Animated,
@@ -26,137 +22,172 @@ import {
   useState,
 } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import RootSiblings from 'react-native-root-siblings';
 
-// ─── Context ─────────────────────────────────────────────────────────────────
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 type BannerCtx = {
   showBanner: (title: string, body?: string, type?: 'follow' | 'post') => void;
 };
 
 const BannerContext = createContext<BannerCtx>({ showBanner: () => {} });
-
 export const useNotificationBanner = () => useContext(BannerContext);
 
-// ─── Provider + banner UI ─────────────────────────────────────────────────────
+// ─── The visual banner ────────────────────────────────────────────────────────
+
+function BannerView({
+  title,
+  body,
+  type,
+  topOffset,
+  onDismiss,
+}: {
+  title: string;
+  body?: string;
+  type: 'follow' | 'post';
+  topOffset: number;
+  onDismiss: () => void;
+}) {
+  const translateY = useRef(new Animated.Value(-140)).current;
+  const icon: keyof typeof Ionicons.glyphMap =
+    type === 'follow' ? 'person-add' : 'newspaper-outline';
+
+  // Slide in on mount
+  useRef(
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: Platform.OS !== 'web',
+      bounciness: 5,
+    }).start()
+  );
+
+  const handleDismiss = () => {
+    Animated.timing(translateY, {
+      toValue: -140,
+      duration: 260,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(onDismiss);
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.banner,
+        Platform.OS === 'web'
+          ? ({ position: 'fixed', top: topOffset } as any)
+          : { position: 'absolute', top: topOffset },
+        { transform: [{ translateY }] },
+      ]}
+    >
+      <Pressable onPress={handleDismiss} style={styles.inner}>
+        <View style={styles.iconWrap}>
+          <Ionicons name={icon} size={20} color="#f97316" />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {!!body && (
+            <Text style={styles.body} numberOfLines={2}>{body}</Text>
+          )}
+        </View>
+
+        <Pressable onPress={handleDismiss} hitSlop={10} style={{ padding: 2 }}>
+          <Ionicons name="close" size={16} color="#6b7280" />
+        </Pressable>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function NotificationBannerProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(-120)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const siblingRef = useRef<RootSiblings | null>(null);
+  const topOffset = insets.top + 8;
 
-  const [content, setContent] = useState<{
-    title: string;
-    body?: string;
-    type: 'follow' | 'post';
+  // Web: use state to render inline (position:fixed handles the overlay)
+  const [webContent, setWebContent] = useState<{
+    title: string; body?: string; type: 'follow' | 'post';
   } | null>(null);
 
-  const dismiss = useCallback(() => {
-    Animated.timing(translateY, {
-      toValue: -120,
-      duration: 280,
-      useNativeDriver: true,
-    }).start(() => setContent(null));
-  }, [translateY]);
+  const dismissWeb = useCallback(() => setWebContent(null), []);
 
   const showBanner = useCallback(
     (title: string, body?: string, type: 'follow' | 'post' = 'post') => {
-      // Cancel any running auto-dismiss
       if (timerRef.current) clearTimeout(timerRef.current);
 
-      setContent({ title, body, type });
-
-      // Slide in
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        bounciness: 6,
-      }).start();
-
-      // Auto-dismiss after 4 s
-      timerRef.current = setTimeout(dismiss, 4000);
+      if (Platform.OS === 'web') {
+        // Web: render via state (position:fixed floats over everything)
+        setWebContent({ title, body, type });
+        timerRef.current = setTimeout(dismissWeb, 4500);
+      } else {
+        // Native: render via RootSiblings so it appears above navigation
+        siblingRef.current?.destroy();
+        const sibling = new RootSiblings(
+          <BannerView
+            title={title}
+            body={body}
+            type={type}
+            topOffset={topOffset}
+            onDismiss={() => sibling.destroy()}
+          />
+        );
+        siblingRef.current = sibling;
+        timerRef.current = setTimeout(() => sibling.destroy(), 4500);
+      }
     },
-    [translateY, dismiss]
+    [topOffset, dismissWeb]
   );
-
-  const icon: keyof typeof Ionicons.glyphMap =
-    content?.type === 'follow' ? 'person-add' : 'newspaper-outline';
 
   return (
     <BannerContext.Provider value={{ showBanner }}>
       {children}
 
-      {content && (
-        <Animated.View
-          style={[
-            styles.banner,
-            {
-              top: insets.top + (Platform.OS === 'web' ? 8 : 4),
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          <Pressable onPress={dismiss} style={styles.inner}>
-            {/* Icon */}
-            <View style={styles.iconWrap}>
-              <Ionicons name={icon} size={20} color="#f97316" />
-            </View>
-
-            {/* Text */}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title} numberOfLines={1}>
-                {content.title}
-              </Text>
-              {!!content.body && (
-                <Text style={styles.body} numberOfLines={2}>
-                  {content.body}
-                </Text>
-              )}
-            </View>
-
-            {/* Dismiss X */}
-            <Pressable onPress={dismiss} hitSlop={10} style={{ padding: 2 }}>
-              <Ionicons name="close" size={16} color="#6b7280" />
-            </Pressable>
-          </Pressable>
-        </Animated.View>
+      {/* Web banner — position:fixed handles the overlay */}
+      {Platform.OS === 'web' && webContent && (
+        <BannerView
+          title={webContent.title}
+          body={webContent.body}
+          type={webContent.type}
+          topOffset={topOffset}
+          onDismiss={dismissWeb}
+        />
       )}
     </BannerContext.Provider>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   banner: {
-    position: 'absolute',
     left: 12,
     right: 12,
-    zIndex: 9999,
-    // Web needs explicit elevation workaround
-    ...Platform.select({
-      web: { zIndex: 9999 },
-      default: { elevation: 20 },
-    }),
+    zIndex: 99999,
+    elevation: 99999,
   },
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1c1c1c',
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
-    // Shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    borderColor: '#f97316',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
     shadowRadius: 12,
   },
   iconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f9731620',
+    backgroundColor: '#f9731622',
     alignItems: 'center',
     justifyContent: 'center',
   },
