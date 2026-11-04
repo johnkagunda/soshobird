@@ -9,16 +9,15 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name='login' options={{ headerShown: false }} />
-      <Stack.Screen
-        name='signup'
-        options={{ title: 'Sign up', headerBackButtonDisplayMode: 'minimal' }}
-      />
-      <Stack.Screen
-        name='forgot-password'
-        options={{ headerShown: false }}
-      />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#000' },
+      }}
+    >
+      <Stack.Screen name='login' />
+      <Stack.Screen name='signup' />
+      <Stack.Screen name='forgot-password' />
     </Stack>
   );
 }

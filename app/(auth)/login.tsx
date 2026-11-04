@@ -45,8 +45,9 @@ export default function LoginScreen() {
     };
 
     return (
+        <View style={{ flex: 1, backgroundColor: '#000', ...(Platform.OS === 'web' ? { minHeight: '100vh' } as any : {}) }}>
         <KeyboardAvoidingView
-            style={{ flex: 1, backgroundColor: '#000' }}
+            style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <ScrollView
@@ -185,5 +186,6 @@ export default function LoginScreen() {
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
+        </View>
     );
 }
