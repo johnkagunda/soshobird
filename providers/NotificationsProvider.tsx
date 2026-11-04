@@ -10,7 +10,7 @@ import { updateProfile } from '@/services/profile';
 import { supabase } from '@/lib/supabase';
 import { useNotificationBanner } from '@/components/NotificationBanner';
 
-// Only set the handler on native — web doesn't support it properly
+// Native: set the foreground notification handler
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -21,6 +21,32 @@ if (Platform.OS !== 'web') {
     }),
   });
 }
+
+// ─── Web browser Notification API helpers ─────────────────────────────────────
+
+/** Request browser notification permission (web only). Returns true if granted. */
+async function requestWebNotificationPermission(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const result = await Notification.requestPermission();
+  return result === 'granted';
+}
+
+/** Show a native browser notification (web only). */
+function showWebSystemNotification(title: string, body: string, icon?: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  new Notification(title, {
+    body,
+    icon: icon ?? '/favicon.ico',  // uses app favicon by default
+    badge: '/favicon.ico',
+    tag: 'soshobird',              // replaces previous notification of same tag
+    silent: false,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function NotificationsProvider({ children }: PropsWithChildren) {
   const [expoPushToken, setExpoPushToken] = useState('');
@@ -36,14 +62,14 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
       updateProfile(user!.id, data),
   });
 
-  // Save push token to profile once we have both user and token
+  // Save push token to profile (native)
   useEffect(() => {
     if (expoPushToken && user) {
       updateMutation({ push_token: expoPushToken });
     }
   }, [expoPushToken, user]);
 
-  // Register for push notifications (native only)
+  // ── Native: register for push notifications ──────────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') return;
 
@@ -69,12 +95,16 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  // ─── Real-time notification subscription (works on native + web) ───────
-  // Unique channel name per user so multiple sessions don't collide.
-  // Supabase Realtime checks RLS — the user must be authenticated for the
-  // filter `user_id=eq.<uid>` to pass. The anon client is fine here because
-  // the user's JWT is already attached to the supabase client via the auth
-  // session, so Realtime will honour the policy.
+  // ── Web: request browser notification permission once user is logged in ──
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (!user) return;
+    requestWebNotificationPermission().then((granted) => {
+      console.log('[Web Notifications] permission:', granted ? 'granted' : 'denied');
+    });
+  }, [user?.id]);
+
+  // ── Realtime subscription — fires on both native and web ─────────────────
   useEffect(() => {
     if (!user) return;
 
@@ -97,7 +127,7 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
             post_id: string | null;
           };
 
-          // Fetch actor name for display
+          // Fetch actor name
           const { data: actor } = await supabase
             .from('profiles')
             .select('full_name, username')
@@ -107,44 +137,50 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
           const actorName = actor?.full_name || actor?.username || 'Someone';
 
           if (n.type === 'follow') {
-            showBanner(`${actorName} started following you 🐦`, undefined, 'follow');
-            // Also fire a local system notification so it appears in the shade
-            if (Platform.OS !== 'web') {
+            const title = 'New follower';
+            const body = `${actorName} started following you`;
+
+            // In-app banner (both platforms)
+            showBanner(body, undefined, 'follow');
+
+            // System notification
+            if (Platform.OS === 'web') {
+              showWebSystemNotification(title, body);
+            } else {
               Notifications.scheduleNotificationAsync({
-                content: {
-                  title: 'New follower',
-                  body: `${actorName} started following you`,
-                  sound: 'default',
-                  data: { type: 'follow' },
-                },
+                content: { title, body, sound: 'default', data: { type: 'follow' } },
                 trigger: null,
               });
             }
+
           } else if (n.type === 'post') {
-            let body = '';
+            let postContent = '';
             if (n.post_id) {
               const { data: post } = await supabase
                 .from('posts')
                 .select('content')
                 .eq('id', n.post_id)
                 .maybeSingle();
-              body = post?.content?.slice(0, 100) ?? '';
+              postContent = post?.content?.slice(0, 100) ?? '';
             }
-            showBanner(`${actorName} posted`, body || undefined, 'post');
-            if (Platform.OS !== 'web') {
+
+            const title = `${actorName} posted`;
+            const body = postContent || 'Check out the new post';
+
+            // In-app banner (both platforms)
+            showBanner(title, postContent || undefined, 'post');
+
+            // System notification
+            if (Platform.OS === 'web') {
+              showWebSystemNotification(title, body);
+            } else {
               Notifications.scheduleNotificationAsync({
-                content: {
-                  title: `${actorName} posted`,
-                  body: body || 'Check out the new post',
-                  sound: 'default',
-                  data: { type: 'post', post_id: n.post_id },
-                },
+                content: { title, body, sound: 'default', data: { type: 'post', post_id: n.post_id } },
                 trigger: null,
               });
             }
           }
 
-          // Refresh the notifications list query
           queryClient.invalidateQueries({ queryKey: ['notifications'] });
         }
       )
