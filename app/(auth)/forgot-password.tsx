@@ -18,10 +18,11 @@ const ORANGE = '#f97316';
 /** Build the correct redirect URL for the current platform/environment */
 function getResetRedirectUrl(): string {
   if (Platform.OS === 'web') {
-    // Use the current origin — works for both localhost dev and production on Render
-    return `${window.location.origin}/auth/reset-password`;
+    // Redirect to /auth/callback which reads the tokens and routes to reset-password
+    return `${window.location.origin}/auth/callback`;
   }
-  return 'soshobird://auth/reset-password';
+  // Native: deep link → callback screen handles the recovery token
+  return 'soshobird://auth/callback';
 }
 
 export default function ForgotPasswordScreen() {
