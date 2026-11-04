@@ -1,13 +1,17 @@
 /**
- * Google Sign-In — works on Android (native), iOS, and Web.
+ * Google Sign-In — platform-specific flow:
  *
- * Flow:
- *  1. Get OAuth URL from Supabase (skipBrowserRedirect: true)
- *  2. Open in system browser via WebBrowser.openAuthSessionAsync
- *  3. After Google auth, Supabase redirects back to our redirectTo URL
- *  4. WebBrowser intercepts it (on native) or the page loads (on web)
- *  5. Parse access_token + refresh_token from the URL fragment
- *  6. Call supabase.auth.setSession() → AuthProvider logs user in
+ * WEB:
+ *   signInWithOAuth without skipBrowserRedirect → Supabase redirects the
+ *   current page to Google, Google redirects back to /auth/callback,
+ *   Supabase JS picks up the session from the URL fragment automatically.
+ *   No extra browser window ever opens.
+ *
+ * ANDROID / iOS:
+ *   skipBrowserRedirect: true → we get the OAuth URL, open it in a
+ *   controlled in-app browser via WebBrowser.openAuthSessionAsync,
+ *   the browser closes automatically when it sees our redirect URI,
+ *   and we parse the tokens from the result URL.
  */
 import { Pressable, Text, View, ActivityIndicator, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -16,18 +20,6 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
-
-function makeRedirectUri(): string {
-  if (Platform.OS === 'web') {
-    // Web: use the actual current origin so it works on both
-    // localhost:8081 (dev) and soshobird.onrender.com (prod)
-    return `${window.location.origin}/auth/callback`;
-  }
-  // Native: Expo's Linking.createURL uses the scheme from app.json ("soshobird")
-  // and generates soshobird://auth/callback on a real device / production build.
-  // In Expo Go it generates exp://... which also gets intercepted correctly.
-  return Linking.createURL('auth/callback');
-}
 
 export default function GoogleSignInButton() {
   const [loading, setLoading] = useState(false);
@@ -38,9 +30,27 @@ export default function GoogleSignInButton() {
       setLoading(true);
       setError(null);
 
-      const redirectTo = makeRedirectUri();
+      if (Platform.OS === 'web') {
+        // ── Web flow ────────────────────────────────────────────────────────
+        // Let Supabase redirect the current browser tab — no popup, no new window.
+        // After Google auth, Supabase redirects back to window.location.origin
+        // and the Supabase JS client auto-detects the session from the URL fragment.
+        const { error: oauthError } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+            queryParams: { prompt: 'select_account' },
+          },
+        });
+        if (oauthError) throw oauthError;
+        // Page will navigate away — nothing more to do here.
+        return;
+      }
 
-      // 1. Ask Supabase for the Google OAuth URL
+      // ── Native flow (Android / iOS) ─────────────────────────────────────
+      // Build the deep-link redirect URI for this build environment.
+      const redirectTo = Linking.createURL('auth/callback');
+
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -53,42 +63,36 @@ export default function GoogleSignInButton() {
       if (oauthError) throw oauthError;
       if (!data.url) throw new Error('No OAuth URL returned from Supabase');
 
-      // 2. Open Google sign-in in the system browser.
-      //    On Android/iOS, WebBrowser watches for the redirectTo URL and
-      //    closes the browser as soon as it appears — giving us result.url.
+      // Open Google sign-in in a controlled in-app browser.
+      // The browser closes automatically as soon as it sees the redirectTo URI.
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
         showInRecents: false,
       });
 
-      if (result.type !== 'success') {
-        // User cancelled or browser was dismissed without completing
-        return;
-      }
+      if (result.type !== 'success') return; // user cancelled
 
-      // 3. Parse tokens from the redirect URL fragment
+      // Parse tokens from the redirect URL fragment
       const url = result.url;
-      const fragmentOrQuery = url.includes('#')
+      const fragment = url.includes('#')
         ? url.split('#')[1]
         : url.split('?')[1] ?? '';
-      const params = new URLSearchParams(fragmentOrQuery);
+      const params = new URLSearchParams(fragment);
 
       const accessToken  = params.get('access_token');
       const refreshToken = params.get('refresh_token');
 
       if (accessToken && refreshToken) {
-        // 4. Activate the session — AuthProvider's onAuthStateChange fires
-        //    and navigates to the dashboard automatically
+        // Activate the session — AuthProvider's onAuthStateChange fires
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
         if (sessionError) throw sessionError;
       } else {
-        // Tokens weren't in the URL — Supabase JS may have already handled
-        // the session via its own URL listener (common on web)
+        // Fallback: check if Supabase already handled it
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
-          throw new Error('Sign-in completed but no session was created. Please try again.');
+          throw new Error('Sign-in completed but no session found. Please try again.');
         }
       }
     } catch (e: any) {
