@@ -19,15 +19,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="notifications" />
-      <Tabs.Screen
-        name="soshoai"
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push('/(protected)/soshoai');
-          },
-        }}
-      />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

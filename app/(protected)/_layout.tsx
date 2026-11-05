@@ -24,14 +24,6 @@ export default function ProtectedLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name='soshoai'
-        options={{
-          headerShown: false,
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-        }}
-      />
     </Stack>
   )
 }

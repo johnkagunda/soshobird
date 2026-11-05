@@ -39,7 +39,6 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
     discover:      'compass',
     plus:          'plus',
     notifications: 'heart',
-    soshoai:       'cpu',
     profile:       'user',
   };
 
