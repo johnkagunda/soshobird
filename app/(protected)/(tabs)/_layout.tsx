@@ -19,6 +19,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="notifications" />
+      <Tabs.Screen name="soshoai" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

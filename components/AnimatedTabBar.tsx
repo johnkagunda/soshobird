@@ -35,11 +35,12 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
   }, [translateY]);
 
   const icons: Record<string, keyof typeof Feather.glyphMap> = {
-    '(home)': 'home',
-    discover: 'compass',
-    plus:     'plus',
+    '(home)':      'home',
+    discover:      'compass',
+    plus:          'plus',
     notifications: 'heart',
-    profile:  'user',
+    soshoai:       'cpu',
+    profile:       'user',
   };
 
   return (
