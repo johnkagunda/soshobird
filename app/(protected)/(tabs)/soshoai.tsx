@@ -1,7 +1,8 @@
-import { Redirect } from 'expo-router';
+import { View } from 'react-native';
 
-// Placeholder — the actual SoshoAI screen lives at (protected)/soshoai
-// The tab press listener in _layout.tsx handles navigation
+// Placeholder screen — tab press is intercepted by the listener in _layout.tsx
+// which pushes /(protected)/soshoai as a modal. This file must exist for
+// Expo Router to register the tab, but it never actually renders.
 export default function SoshoAITab() {
-  return <Redirect href="/(protected)/soshoai" />;
+  return <View />;
 }
