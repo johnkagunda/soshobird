@@ -71,6 +71,99 @@ let obstacles=[],planes=[],coins=[],particles=[],smokeParticles=[];
 let state='idle',score=0,frame=0,powerFrames=0,blinkOn=true;
 let crashX=0,crashY=0,crashFrame=0; // crash animation state
 
+// ── Web Audio API sound engine (no files needed) ──────────────
+let audioCtx=null;
+
+function getAudio(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playSound(type){
+  try{
+    const ac=getAudio();
+    const g=ac.createGain();
+    g.connect(ac.destination);
+
+    if(type==='flap'){
+      // Quick soft whoosh
+      const o=ac.createOscillator();
+      o.type='sine';
+      o.frequency.setValueAtTime(520,ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(220,ac.currentTime+0.12);
+      g.gain.setValueAtTime(0.18,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+      o.connect(g); o.start(); o.stop(ac.currentTime+0.12);
+
+    } else if(type==='coin'){
+      // Cheerful rising ding ding
+      [0, 0.08, 0.16].forEach((t,i)=>{
+        const o=ac.createOscillator();
+        o.type='triangle';
+        o.frequency.setValueAtTime(600+i*220,ac.currentTime+t);
+        const gn=ac.createGain();
+        gn.gain.setValueAtTime(0.22,ac.currentTime+t);
+        gn.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+t+0.18);
+        o.connect(gn); gn.connect(ac.destination);
+        o.start(ac.currentTime+t); o.stop(ac.currentTime+t+0.18);
+      });
+
+    } else if(type==='break'){
+      // Crunch — short noise burst
+      const buf=ac.createBuffer(1,ac.sampleRate*0.12,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2);
+      const src=ac.createBufferSource(); src.buffer=buf;
+      const flt=ac.createBiquadFilter(); flt.type='bandpass'; flt.frequency.value=800;
+      src.connect(flt); flt.connect(g);
+      g.gain.setValueAtTime(0.35,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+      src.start(); src.stop(ac.currentTime+0.12);
+
+    } else if(type==='die'){
+      // Descending sad trombone-ish
+      const o=ac.createOscillator();
+      o.type='sawtooth';
+      o.frequency.setValueAtTime(420,ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(80,ac.currentTime+0.55);
+      g.gain.setValueAtTime(0.22,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.55);
+      o.connect(g); o.start(); o.stop(ac.currentTime+0.55);
+
+    } else if(type==='crash'){
+      // Thud + rumble
+      const buf=ac.createBuffer(1,ac.sampleRate*0.4,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,3);
+      const src=ac.createBufferSource(); src.buffer=buf;
+      const flt=ac.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=220;
+      src.connect(flt); flt.connect(g);
+      g.gain.setValueAtTime(0.6,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.4);
+      src.start(); src.stop(ac.currentTime+0.4);
+
+    } else if(type==='score'){
+      // Tiny blip
+      const o=ac.createOscillator();
+      o.type='sine';
+      o.frequency.setValueAtTime(880,ac.currentTime);
+      g.gain.setValueAtTime(0.1,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.07);
+      o.connect(g); o.start(); o.stop(ac.currentTime+0.07);
+
+    } else if(type==='powerup'){
+      // Rising sweep — power activated
+      const o=ac.createOscillator();
+      o.type='triangle';
+      o.frequency.setValueAtTime(300,ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1200,ac.currentTime+0.3);
+      g.gain.setValueAtTime(0.2,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3);
+      o.connect(g); o.start(); o.stop(ac.currentTime+0.3);
+    }
+  } catch(e){}
+}
+
 // ── Engine reset ──────────────────────────────────────────────
 function resetEngine(){
   if(runner) Runner.stop(runner);
@@ -101,6 +194,7 @@ function resetEngine(){
             obstacles=obstacles.filter(o=>o.body!==other);
             planes=planes.filter(pl=>pl.body!==other);
             updateScore(score+2);
+            playSound('break');
           } else { die(false); }
         }
       }
@@ -156,6 +250,7 @@ function spawnCoin(){
 function flap(){
   if(state==='dead') return;
   if(state==='idle') startGame();
+  playSound('flap');
   Body.setVelocity(birdBody,{x:0,y:-9.5});
 }
 
@@ -184,6 +279,7 @@ function crashBird(){
   burstParticles(crashX,crashY,'#92400e',14);
   // Rising smoke column
   spawnSmoke(crashX,crashY);
+  playSound('crash');
   if(score>best) best=score;
   document.getElementById('best').textContent='BEST: '+best;
   setTimeout(showGameOver,1800);
@@ -195,6 +291,7 @@ function die(fromCrash){
   engine.gravity.y=0;
   Body.setVelocity(birdBody,{x:0,y:0});
   burstParticles(birdBody.position.x,birdBody.position.y,'#ef4444',24);
+  playSound('die');
   if(score>best) best=score;
   document.getElementById('best').textContent='BEST: '+best;
   setTimeout(showGameOver,800);
@@ -234,6 +331,8 @@ function collectCoin(coin){
   engine.gravity.y=0.5;
   burstParticles(coin.x,coin.y,'#fbbf24',22);
   updateScore(score+3);updatePowerUI();
+  playSound('coin');
+  playSound('powerup');
 }
 
 // ── Drawing ────────────────────────────────────────────────────
@@ -436,7 +535,7 @@ function loop(){
     if(frame%SPAWN_INTERVAL===0) spawnObstacle();
     if(frame%PLANE_INTERVAL===0) spawnPlane();
     if(frame%COIN_INTERVAL===30) spawnCoin();
-    if(frame%120===0) updateScore(score+1);
+    if(frame%120===0){ updateScore(score+1); playSound('score'); }
     // Only die from ceiling going up — ground is handled by collision
     if(birdBody.position.y<-30) die(false);
   }
