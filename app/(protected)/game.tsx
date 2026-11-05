@@ -18,11 +18,34 @@ canvas{display:block;touch-action:none}
 #ui-center{flex:1;display:flex;flex-direction:column;align-items:center}
 #score{color:#fff;font-size:34px;font-weight:900;text-shadow:0 2px 12px rgba(0,0,0,.9);line-height:1}
 #power{color:#fbbf24;font-size:13px;font-weight:700;min-height:16px;margin-top:3px}
-#ui-right{text-align:right;flex-shrink:0}
+#ui-right{text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 #best{color:#f97316;font-size:13px;font-weight:700}
+#pauseBtn{
+  pointer-events:all;cursor:pointer;
+  background:rgba(255,255,255,0.1);
+  border:1.5px solid rgba(255,255,255,0.2);
+  border-radius:10px;padding:5px 10px;
+  color:#fff;font-size:13px;font-weight:700;
+  display:none;align-items:center;gap:5px;
+  user-select:none;-webkit-user-select:none;
+}
+#pauseBtn.visible{display:flex}
 #overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:20;gap:10px}
 #overlay.hidden{display:none}
-#overlay .bird{font-size:68px}
+#pauseOverlay{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(0,0,0,.78);z-index:20;gap:14px;
+}
+#pauseOverlay.hidden{display:none}
+#pauseOverlay h2{color:#fff;font-size:32px;font-weight:900}
+#pauseOverlay p{color:#9ca3af;font-size:14px}
+.pBtn{
+  width:220px;padding:14px;border-radius:14px;border:none;cursor:pointer;
+  font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.pBtn.resume{background:#f97316;color:#fff}
+.pBtn.restart{background:#1a1a1a;color:#9ca3af;border:1px solid #2a2a2a}
 #overlay h1{color:#fff;font-size:36px;font-weight:900}
 #overlay .hint{color:#f97316;font-size:18px;font-weight:700;margin-top:8px}
 #overlay .info{color:#9ca3af;font-size:13px;text-align:center;max-width:280px;line-height:1.7}
@@ -38,7 +61,19 @@ canvas{display:block;touch-action:none}
     <div id="score">0</div>
     <div id="power"></div>
   </div>
-  <div id="ui-right"><div id="best">BEST: 0</div></div>
+  <div id="ui-right">
+    <div id="best">BEST: 0</div>
+    <div id="pauseBtn" onclick="togglePause()">
+      <span id="pauseIcon">⏸</span><span id="pauseLabel">Pause</span>
+    </div>
+  </div>
+</div>
+<div id="pauseOverlay" class="hidden">
+  <span style="font-size:58px">⏸</span>
+  <h2>Paused</h2>
+  <p>Score: <b id="pauseScore" style="color:#fff">0</b></p>
+  <button class="pBtn resume" onclick="togglePause()">▶ Resume</button>
+  <button class="pBtn restart" onclick="restartFromPause()">↺ Restart</button>
 </div>
 <div id="overlay">
   <canvas id="logo" width="100" height="100" style="margin-bottom:4px"></canvas>
@@ -68,7 +103,7 @@ const stars=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*FLOOR
 
 let engine,runner,birdBody;
 let obstacles=[],planes=[],coins=[],particles=[],smokeParticles=[];
-let state='idle',score=0,frame=0,powerFrames=0,blinkOn=true;
+let state='idle',score=0,frame=0,powerFrames=0,blinkOn=true,paused=false;
 let crashX=0,crashY=0,crashFrame=0; // crash animation state
 
 // ── Web Audio API sound engine (no files needed) ──────────────
@@ -248,7 +283,7 @@ function spawnCoin(){
 
 // ── Game flow ─────────────────────────────────────────────────
 function flap(){
-  if(state==='dead') return;
+  if(state==='dead'||paused) return;
   if(state==='idle') startGame();
   playSound('flap');
   Body.setVelocity(birdBody,{x:0,y:-9.5});
@@ -257,8 +292,12 @@ function flap(){
 function startGame(){
   resetEngine();
   obstacles=[];planes=[];coins=[];particles=[];smokeParticles=[];
-  state='playing';score=0;frame=0;powerFrames=0;blinkOn=true;crashFrame=0;
+  state='playing';score=0;frame=0;powerFrames=0;blinkOn=true;crashFrame=0;paused=false;
   document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('pauseOverlay').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('visible');
+  document.getElementById('pauseIcon').textContent='⏸';
+  document.getElementById('pauseLabel').textContent='Pause';
   engine.gravity.y=1.7;
   Body.setPosition(birdBody,{x:BIRD_X,y:H/2});
   Body.setVelocity(birdBody,{x:0,y:0});
@@ -268,7 +307,9 @@ function startGame(){
 function crashBird(){
   // Bird hits the ground — show crash + smoke, then game over
   if(state==='dead') return;
-  state='dead';powerFrames=0;blinkOn=true;
+  state='dead';powerFrames=0;blinkOn=true;paused=false;
+  document.getElementById('pauseBtn').classList.remove('visible');
+  document.getElementById('pauseOverlay').classList.add('hidden');
   engine.gravity.y=0;
   Body.setVelocity(birdBody,{x:0,y:0});
   crashX=birdBody.position.x;
@@ -287,7 +328,9 @@ function crashBird(){
 
 function die(fromCrash){
   if(state==='dead') return;
-  state='dead';powerFrames=0;blinkOn=true;
+  state='dead';powerFrames=0;blinkOn=true;paused=false;
+  document.getElementById('pauseBtn').classList.remove('visible');
+  document.getElementById('pauseOverlay').classList.add('hidden');
   engine.gravity.y=0;
   Body.setVelocity(birdBody,{x:0,y:0});
   burstParticles(birdBody.position.x,birdBody.position.y,'#ef4444',24);
@@ -319,6 +362,35 @@ function showGameOver(){
     lx.beginPath();lx.moveTo(cx-8,cy-8);lx.lineTo(cx+8,cy+8);lx.stroke();
     lx.beginPath();lx.moveTo(cx+8,cy-8);lx.lineTo(cx-8,cy+8);lx.stroke();
   }
+}
+
+function togglePause(){
+  if(state!=='playing') return;
+  paused=!paused;
+  const btn=document.getElementById('pauseBtn');
+  const icon=document.getElementById('pauseIcon');
+  const label=document.getElementById('pauseLabel');
+  const po=document.getElementById('pauseOverlay');
+  if(paused){
+    // Freeze physics
+    Runner.stop(runner);
+    po.classList.remove('hidden');
+    document.getElementById('pauseScore').textContent=score;
+    icon.textContent='▶'; label.textContent='Resume';
+    btn.style.borderColor='rgba(249,115,22,0.6)';
+  } else {
+    // Resume physics
+    Runner.run(runner,engine);
+    po.classList.add('hidden');
+    icon.textContent='⏸'; label.textContent='Pause';
+    btn.style.borderColor='rgba(255,255,255,0.2)';
+  }
+}
+
+function restartFromPause(){
+  paused=false;
+  document.getElementById('pauseBtn').classList.remove('visible');
+  startGame();
 }
 
 function updateScore(n){score=n;document.getElementById('score').textContent=n;}
@@ -509,6 +581,7 @@ function drawParticles(){
 // ── Main loop ─────────────────────────────────────────────────
 function loop(){
   requestAnimationFrame(loop);
+  if(paused) return; // freeze everything while paused
   frame++;
   drawBg();
 
