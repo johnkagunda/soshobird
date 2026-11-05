@@ -7,6 +7,7 @@ import {
   RefreshControl,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef } from 'react';
@@ -59,16 +60,20 @@ function GameCard() {
         paddingHorizontal: 20,
         gap: 16,
       }}>
-        {/* Bird icon */}
+        {/* Bird icon from assets */}
         <View style={{
           width: 64, height: 64, borderRadius: 32,
           backgroundColor: '#f97316',
           alignItems: 'center', justifyContent: 'center',
           shadowColor: '#f97316', shadowOpacity: 0.7,
           shadowRadius: 12, elevation: 8,
+          overflow: 'hidden',
         }}>
-          {/* Orange bird drawn with Views */}
-          <Text style={{ fontSize: 34 }}>🐦</Text>
+          <Image
+            source={require('@/assets/images/icon.png')}
+            style={{ width: 64, height: 64, borderRadius: 32 }}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Text */}
