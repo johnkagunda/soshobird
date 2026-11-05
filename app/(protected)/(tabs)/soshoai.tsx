@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useCallback } from 'react';
 
-const OLLAMA_URL = 'http://localhost:11434';
+const OLLAMA_URL = 'http://192.168.100.30:11434';
 const MODEL = 'morio-simple:latest';
 const ORANGE = '#f97316';
 
