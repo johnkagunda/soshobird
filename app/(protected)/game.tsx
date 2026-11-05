@@ -13,23 +13,14 @@ const GAME_HTML = `<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#060d1a;overflow:hidden;font-family:-apple-system,sans-serif}
 canvas{display:block;touch-action:none}
-#ui{
-  position:fixed;top:0;left:0;right:0;
-  display:flex;align-items:flex-start;
-  padding:16px 16px 0;pointer-events:none;z-index:10;
-}
-/* 56px spacer on left clears the native close button */
+#ui{position:fixed;top:0;left:0;right:0;display:flex;align-items:flex-start;padding:16px 16px 0;pointer-events:none;z-index:10}
 #ui-left{width:56px;flex-shrink:0}
 #ui-center{flex:1;display:flex;flex-direction:column;align-items:center}
 #score{color:#fff;font-size:34px;font-weight:900;text-shadow:0 2px 12px rgba(0,0,0,.9);line-height:1}
 #power{color:#fbbf24;font-size:13px;font-weight:700;min-height:16px;margin-top:3px}
 #ui-right{text-align:right;flex-shrink:0}
 #best{color:#f97316;font-size:13px;font-weight:700}
-#overlay{
-  position:fixed;inset:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.82);z-index:20;gap:10px;
-}
+#overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:20;gap:10px}
 #overlay.hidden{display:none}
 #overlay .bird{font-size:68px}
 #overlay h1{color:#fff;font-size:36px;font-weight:900}
@@ -58,47 +49,59 @@ canvas{display:block;touch-action:none}
 <canvas id="c"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <script>
-const {Engine,Runner,Bodies,Body,World,Events} = Matter;
-const W = window.innerWidth, H = window.innerHeight;
-const canvas = document.getElementById('c');
-canvas.width = W; canvas.height = H;
-const ctx = canvas.getContext('2d');
+const {Engine,Runner,Bodies,Body,World,Events}=Matter;
+const W=window.innerWidth,H=window.innerHeight;
+const canvas=document.getElementById('c');
+canvas.width=W;canvas.height=H;
+const ctx=canvas.getContext('2d');
 
-const BIRD_X=W*.22, BIRD_R=20, OBS_W=54;
-const OBS_SPEED_BASE=3.0, PLANE_SPEED=5.5, COIN_R=12;
+// ── Layout ────────────────────────────────────────────────────
+const GRASS_H  = 42;          // grass strip height at bottom
+const FLOOR_Y  = H - GRASS_H; // y where grass starts
+const BIRD_X   = W*.22, BIRD_R=20, OBS_W=54;
+const OBS_SPEED_BASE=3.0, PLANE_SPEED=5.5, COIN_R=14;
 const POWER_DURATION=180, BLINK_START=60;
 const SPAWN_INTERVAL=100, PLANE_INTERVAL=220, COIN_INTERVAL=150;
 
 let best=0;
-const stars=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.6+.2,a:Math.random()*Math.PI*2}));
+const stars=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*FLOOR_Y,r:Math.random()*1.6+.2,a:Math.random()*Math.PI*2}));
 
 let engine,runner,birdBody;
-let obstacles=[],planes=[],coins=[],particles=[];
+let obstacles=[],planes=[],coins=[],particles=[],smokeParticles=[];
 let state='idle',score=0,frame=0,powerFrames=0,blinkOn=true;
+let crashX=0,crashY=0,crashFrame=0; // crash animation state
 
-// ── Full engine reset every game start ──
+// ── Engine reset ──────────────────────────────────────────────
 function resetEngine(){
   if(runner) Runner.stop(runner);
   engine=Engine.create({gravity:{y:0}});
   runner=Runner.create();
-  birdBody=Bodies.circle(BIRD_X,H/2,BIRD_R,{label:'bird',restitution:0,frictionAir:.04,collisionFilter:{category:0x0001,mask:0x0002}});
-  const g=Bodies.rectangle(W/2,H+25,W*3,50,{isStatic:true,label:'wall',collisionFilter:{category:0x0002}});
-  const c=Bodies.rectangle(W/2,-25,W*3,50,{isStatic:true,label:'wall',collisionFilter:{category:0x0002}});
-  World.add(engine.world,[birdBody,g,c]);
+  birdBody=Bodies.circle(BIRD_X,H/2,BIRD_R,{
+    label:'bird',restitution:0,frictionAir:.04,
+    collisionFilter:{category:0x0001,mask:0x0002}
+  });
+  // Ground sits at FLOOR_Y
+  const gnd=Bodies.rectangle(W/2,FLOOR_Y+25,W*3,50,{isStatic:true,label:'ground',collisionFilter:{category:0x0002}});
+  const ceil=Bodies.rectangle(W/2,-25,W*3,50,{isStatic:true,label:'wall',collisionFilter:{category:0x0002}});
+  World.add(engine.world,[birdBody,gnd,ceil]);
   Events.on(engine,'collisionStart',(e)=>{
     if(state!=='playing') return;
     e.pairs.forEach(p=>{
       if(p.bodyA.label==='bird'||p.bodyB.label==='bird'){
         const other=p.bodyA.label==='bird'?p.bodyB:p.bodyA;
-        if(other.label==='wall'){ die(); }
-        else if(other.label==='obstacle'||other.label==='plane'){
+        if(other.label==='ground'){
+          // Bird hit the ground — crash!
+          crashBird();
+        } else if(other.label==='wall'){
+          die(false);
+        } else if(other.label==='obstacle'||other.label==='plane'){
           if(powerFrames>0){
-            burstParticles(other.position.x,other.position.y,'#f97316');
+            burstParticles(other.position.x,other.position.y,'#f97316',18);
             World.remove(engine.world,other);
             obstacles=obstacles.filter(o=>o.body!==other);
             planes=planes.filter(pl=>pl.body!==other);
             updateScore(score+2);
-          } else { die(); }
+          } else { die(false); }
         }
       }
     });
@@ -106,31 +109,50 @@ function resetEngine(){
   Runner.run(runner,engine);
 }
 
+// ── Particles ─────────────────────────────────────────────────
 function burstParticles(x,y,color,count=18){
   for(let i=0;i<count;i++){
     const a=(Math.PI*2/count)*i,spd=3+Math.random()*4;
-    particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:1,color});
+    particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:1,color,r:3});
   }
 }
 
+function spawnSmoke(x,y){
+  for(let i=0;i<30;i++){
+    const angle=-Math.PI/2+(-0.6+Math.random()*1.2);
+    const spd=0.5+Math.random()*2.5;
+    smokeParticles.push({
+      x:x+(Math.random()-0.5)*20,
+      y:y,
+      vx:Math.cos(angle)*spd,
+      vy:Math.sin(angle)*spd-(Math.random()*1),
+      life:1,
+      r:8+Math.random()*14,
+      gray:Math.floor(150+Math.random()*80)
+    });
+  }
+}
+
+// ── Spawners ──────────────────────────────────────────────────
 function spawnObstacle(){
-  const y=H*.15+Math.random()*(H*.70),h=40+Math.random()*40;
+  const y=FLOOR_Y*.15+Math.random()*(FLOOR_Y*.65),h=40+Math.random()*40;
   const b=Bodies.rectangle(W+OBS_W/2,y,OBS_W,h,{isStatic:true,label:'obstacle',collisionFilter:{category:0x0002}});
   World.add(engine.world,b);
   obstacles.push({body:b,type:Math.random()<.5?'cloud':'storm'});
 }
 
 function spawnPlane(){
-  const y=H*.1+Math.random()*(H*.80);
+  const y=FLOOR_Y*.1+Math.random()*(FLOOR_Y*.75);
   const b=Bodies.rectangle(W+80,y,90,28,{isStatic:true,label:'plane',collisionFilter:{category:0x0002}});
   World.add(engine.world,b);
   planes.push({body:b,f:0});
 }
 
 function spawnCoin(){
-  coins.push({x:W+COIN_R,y:H*.15+Math.random()*(H*.70),anim:0});
+  coins.push({x:W+COIN_R,y:FLOOR_Y*.15+Math.random()*(FLOOR_Y*.65),anim:0});
 }
 
+// ── Game flow ─────────────────────────────────────────────────
 function flap(){
   if(state==='dead') return;
   if(state==='idle') startGame();
@@ -139,8 +161,8 @@ function flap(){
 
 function startGame(){
   resetEngine();
-  obstacles=[];planes=[];coins=[];particles=[];
-  state='playing';score=0;frame=0;powerFrames=0;blinkOn=true;
+  obstacles=[];planes=[];coins=[];particles=[];smokeParticles=[];
+  state='playing';score=0;frame=0;powerFrames=0;blinkOn=true;crashFrame=0;
   document.getElementById('overlay').classList.add('hidden');
   engine.gravity.y=1.7;
   Body.setPosition(birdBody,{x:BIRD_X,y:H/2});
@@ -148,7 +170,26 @@ function startGame(){
   updateScore(0);updatePowerUI();
 }
 
-function die(){
+function crashBird(){
+  // Bird hits the ground — show crash + smoke, then game over
+  if(state==='dead') return;
+  state='dead';powerFrames=0;blinkOn=true;
+  engine.gravity.y=0;
+  Body.setVelocity(birdBody,{x:0,y:0});
+  crashX=birdBody.position.x;
+  crashY=FLOOR_Y - BIRD_R;
+  crashFrame=frame;
+  // Lots of orange + dust particles
+  burstParticles(crashX,crashY,'#ef4444',20);
+  burstParticles(crashX,crashY,'#92400e',14);
+  // Rising smoke column
+  spawnSmoke(crashX,crashY);
+  if(score>best) best=score;
+  document.getElementById('best').textContent='BEST: '+best;
+  setTimeout(showGameOver,1800);
+}
+
+function die(fromCrash){
   if(state==='dead') return;
   state='dead';powerFrames=0;blinkOn=true;
   engine.gravity.y=0;
@@ -168,7 +209,7 @@ function showGameOver(){
     (score>0&&score===best?'<div style="color:#fbbf24;font-weight:700;font-size:16px">🏆 New Best!</div>':'')+
     '<div class="hint">Tap to play again</div>';
   ov.classList.remove('hidden');
-  state='idle'; // next tap calls startGame() which resets engine fresh
+  state='idle';
 }
 
 function updateScore(n){score=n;document.getElementById('score').textContent=n;}
@@ -177,29 +218,108 @@ function updatePowerUI(){
 }
 function collectCoin(coin){
   powerFrames=POWER_DURATION;
+  // While powered-up: reduce gravity so bird floats — gravity restored when power ends
+  engine.gravity.y=0.5;
   burstParticles(coin.x,coin.y,'#fbbf24',22);
   updateScore(score+3);updatePowerUI();
 }
 
+// ── Drawing ────────────────────────────────────────────────────
 function drawBg(){
-  const g=ctx.createLinearGradient(0,0,0,H);
+  // Sky
+  const g=ctx.createLinearGradient(0,0,0,FLOOR_Y);
   g.addColorStop(0,'#060d1a');g.addColorStop(1,'#0d2137');
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,FLOOR_Y);
+  // Stars (only in sky area)
   stars.forEach(s=>{
     s.a+=.004;
     ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,'+(0.25+0.4*Math.sin(s.a))+')';ctx.fill();
   });
+  // Moon
   ctx.beginPath();ctx.arc(W-52,58,22,0,Math.PI*2);
   ctx.fillStyle='#fef08a';ctx.shadowColor='#fef08a';ctx.shadowBlur=18;ctx.fill();ctx.shadowBlur=0;
 }
 
+function drawGrass(){
+  // Dark soil base
+  ctx.fillStyle='#1c0d00';
+  ctx.fillRect(0,FLOOR_Y,W,GRASS_H);
+
+  // Grass top strip
+  ctx.fillStyle='#15803d';
+  ctx.fillRect(0,FLOOR_Y,W,14);
+
+  // Lighter grass highlight
+  ctx.fillStyle='#16a34a';
+  ctx.fillRect(0,FLOOR_Y,W,7);
+
+  // Grass blades — simple triangles scattered along the top
+  ctx.fillStyle='#22c55e';
+  for(let gx=4;gx<W;gx+=9){
+    const jitter=(gx*7)%5;
+    ctx.beginPath();
+    ctx.moveTo(gx,FLOOR_Y+2);
+    ctx.lineTo(gx+3,FLOOR_Y-6-jitter);
+    ctx.lineTo(gx+6,FLOOR_Y+2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Ground line shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.fillRect(0,FLOOR_Y+14,W,6);
+}
+
+function drawCrash(){
+  if(state!=='dead'||crashFrame===0) return;
+  const age=frame-crashFrame;
+  // Draw crashed bird flat on grass
+  ctx.save();ctx.translate(crashX,crashY);
+  // Splat X shape
+  ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.lineCap='round';
+  const sz=BIRD_R+4;
+  ctx.beginPath();ctx.moveTo(-sz,-sz);ctx.lineTo(sz,sz);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(sz,-sz);ctx.lineTo(-sz,sz);ctx.stroke();
+  // Spinning feathers
+  for(let i=0;i<5;i++){
+    const fa=(age*.08+i*1.26)%(Math.PI*2);
+    const fr=BIRD_R+8+i*4;
+    const fx=Math.cos(fa)*fr, fy=Math.sin(fa)*fr*0.4;
+    ctx.beginPath();ctx.ellipse(fx,fy,5,2,fa,0,Math.PI*2);
+    ctx.fillStyle='#f97316';ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSmoke(){
+  smokeParticles=smokeParticles.filter(s=>{
+    s.x+=s.vx;
+    s.y+=s.vy;
+    s.vy-=0.04;  // smoke rises
+    s.vx*=0.99;
+    s.r+=0.3;    // smoke puffs grow
+    s.life-=0.012;
+    if(s.life<=0) return false;
+    const alpha=s.life*0.45;
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle='rgba('+s.gray+','+s.gray+','+s.gray+','+alpha+')';
+    ctx.fill();
+    return true;
+  });
+  // Keep spawning smoke while dead and there was a crash
+  if(state==='dead'&&crashFrame>0&&frame-crashFrame<90){
+    if(frame%6===0) spawnSmoke(crashX,crashY);
+  }
+}
+
 function drawBird(){
   const bx=birdBody.position.x,by=birdBody.position.y;
+  // Don't draw bird on grass after crash — show crash symbol instead
+  if(state==='dead'&&crashFrame>0) return;
   const angle=Math.max(-.5,Math.min(1.2,birdBody.velocity.y*.08));
-  // Blink only when powered AND in the blink window
-  if(powerFrames>0&&powerFrames<=BLINK_START){ if(frame%8===0) blinkOn=!blinkOn; }
-  else { blinkOn=true; }
+  if(powerFrames>0&&powerFrames<=BLINK_START){if(frame%8===0) blinkOn=!blinkOn;}
+  else {blinkOn=true;}
   if(!blinkOn) return;
   ctx.save();ctx.translate(bx,by);ctx.rotate(angle);
   if(powerFrames>0){ctx.shadowColor='#fbbf24';ctx.shadowBlur=22;}
@@ -275,10 +395,12 @@ function drawParticles(){
   });
 }
 
+// ── Main loop ─────────────────────────────────────────────────
 function loop(){
   requestAnimationFrame(loop);
   frame++;
   drawBg();
+
   if(state==='playing'){
     const spd=OBS_SPEED_BASE+Math.floor(score/10)*.3;
     obstacles.forEach(o=>Body.setPosition(o.body,{x:o.body.position.x-spd,y:o.body.position.y}));
@@ -294,15 +416,25 @@ function loop(){
     });
     if(powerFrames>0){
       powerFrames--;updatePowerUI();
-      if(powerFrames===0){blinkOn=true;updatePowerUI();}
+      if(powerFrames===0){
+        blinkOn=true;updatePowerUI();
+        engine.gravity.y=1.7; // restore full gravity when power ends
+      }
     }
     if(frame%SPAWN_INTERVAL===0) spawnObstacle();
     if(frame%PLANE_INTERVAL===0) spawnPlane();
     if(frame%COIN_INTERVAL===30) spawnCoin();
     if(frame%120===0) updateScore(score+1);
-    if(birdBody.position.y>H+30||birdBody.position.y<-30) die();
+    // Only die from ceiling going up — ground is handled by collision
+    if(birdBody.position.y<-30) die(false);
   }
-  drawObstacles();drawPlanes();drawCoins();drawParticles();drawBird();
+
+  drawGrass();
+  drawObstacles();drawPlanes();drawCoins();
+  drawSmoke();
+  drawParticles();
+  drawBird();
+  drawCrash();
 }
 
 canvas.addEventListener('click',flap);
@@ -318,35 +450,22 @@ loop();
 
 export default function GameScreen() {
   const insets = useSafeAreaInsets();
-
   return (
     <View style={{ flex: 1, backgroundColor: '#060d1a' }}>
       <View style={{ position: 'absolute', top: insets.top + 8, left: 12, zIndex: 100 }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 }}
-        >
+        <Pressable onPress={() => router.back()} hitSlop={12}
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 }}>
           <Ionicons name="close" size={22} color="#fff" />
         </Pressable>
       </View>
-
       {Platform.OS === 'web' ? (
-        <iframe
-          srcDoc={GAME_HTML}
+        <iframe srcDoc={GAME_HTML}
           style={{ flex: 1, border: 'none', width: '100%', height: '100%' } as any}
-          title="SoshoBird Game"
-        />
+          title="SoshoBird Game" />
       ) : (
-        <WebView
-          source={{ html: GAME_HTML }}
-          style={{ flex: 1 }}
-          javaScriptEnabled
-          scrollEnabled={false}
-          bounces={false}
-          overScrollMode="never"
-          originWhitelist={['*']}
-        />
+        <WebView source={{ html: GAME_HTML }} style={{ flex: 1 }}
+          javaScriptEnabled scrollEnabled={false} bounces={false}
+          overScrollMode="never" originWhitelist={['*']} />
       )}
     </View>
   );
