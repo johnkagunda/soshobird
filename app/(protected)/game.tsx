@@ -112,12 +112,31 @@ const fctx=frozenCanvas.getContext('2d');
 
 // ── Constants ──────────────────────────────────────────────
 const GRASS_H=42;
-// World Y of ground surface (fixed in world space)
 const WORLD_GROUND=2000;
 const BIRD_X=W*.22, BIRD_R=20, OBS_W=54;
-const OBS_SPEED_BASE=3.0, PLANE_SPEED=5.5, COIN_R=14;
+const COIN_R=14;
 const POWER_DURATION=180, BLINK_START=60;
-const SPAWN_INTERVAL=100, PLANE_INTERVAL=220, COIN_INTERVAL=150;
+const SPAWN_INTERVAL=120, PLANE_INTERVAL=260, COIN_INTERVAL=180;
+
+// Difficulty ramps with score
+const BASE_GRAVITY   = 0.8;   // slow fall at start
+const BASE_OBS_SPEED = 1.8;   // slow obstacles at start
+const BASE_PLANE_SPD = 3.0;
+const MAX_GRAVITY    = 2.2;
+const MAX_OBS_SPEED  = 5.5;
+const MAX_PLANE_SPD  = 7.0;
+
+// Cloud blanket ceiling (world Y — high in the sky = small number)
+const CLOUD_CEILING_Y = WORLD_GROUND - 3000; // 3000 units above ground
+
+// Planets start appearing above this height
+const PLANET_ALTITUDE = WORLD_GROUND - 1200; // world Y below which planets appear
+
+// Planet colour palette
+const PLANET_COLORS = ['#a855f7','#06b6d4','#f43f5e','#84cc16','#f97316','#3b82f6'];
+
+// Bird tint when it hits a planet (10 seconds = 600 frames)
+const PLANET_TINT_DURATION = 600;
 
 // ── Camera ─────────────────────────────────────────────────
 // camY is the world Y that maps to screen centre.
@@ -141,9 +160,16 @@ let best=0;
 
 // ── Per-round state ────────────────────────────────────────
 let engine,runner,birdBody;
-let obstacles=[],planes=[],coins=[],particles=[],smokeParticles=[];
+let obstacles=[],planes=[],coins=[],planets=[],particles=[],smokeParticles=[];
 let state='idle',score=0,frame=0,powerFrames=0,blinkOn=true,paused=false;
 let crashX=0,crashSY=0,crashFrame=0;
+let planetTintFrames=0, planetTintColor='#a855f7';
+
+// Difficulty factor 0→1 over first 60 score points
+function diff(){ return Math.min(score/60, 1); }
+function obsSpeed(){ return BASE_OBS_SPEED + (MAX_OBS_SPEED-BASE_OBS_SPEED)*diff(); }
+function planeSpeed(){ return BASE_PLANE_SPD + (MAX_PLANE_SPD-BASE_PLANE_SPD)*diff(); }
+function gravity(){ return BASE_GRAVITY + (MAX_GRAVITY-BASE_GRAVITY)*diff(); }
 
 // ── Audio ──────────────────────────────────────────────────
 let audioCtx=null;
@@ -287,6 +313,15 @@ function spawnCoin(){
   coins.push({wx:W+COIN_R,wy:worldY,anim:0});
 }
 
+function spawnPlanet(){
+  // Only spawn when bird is high enough
+  if(birdBody.position.y > PLANET_ALTITUDE) return;
+  const worldY=birdBody.position.y+(Math.random()-.5)*H*.7;
+  const r=30+Math.random()*50;
+  const color=PLANET_COLORS[Math.floor(Math.random()*PLANET_COLORS.length)];
+  planets.push({wx:W+r+20, wy:worldY, r, color, ring:Math.random()>.5, anim:Math.random()*Math.PI*2});
+}
+
 // ── Game flow ───────────────────────────────────────────────
 function flap(){
   if(state==='dead'||paused) return;
@@ -297,8 +332,9 @@ function flap(){
 
 function startGame(){
   resetEngine();
-  obstacles=[];planes=[];coins=[];particles=[];smokeParticles=[];
+  obstacles=[];planes=[];coins=[];planets=[];particles=[];smokeParticles=[];
   state='playing';score=0;frame=0;powerFrames=0;blinkOn=true;crashFrame=0;paused=false;
+  planetTintFrames=0;
   camY=WORLD_GROUND/2;
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('pauseOverlay').classList.add('hidden');
@@ -306,7 +342,7 @@ function startGame(){
   document.getElementById('pauseBtn').classList.add('visible');
   document.getElementById('pauseIcon').textContent='⏸';
   document.getElementById('pauseLabel').textContent='Pause';
-  engine.gravity.y=1.7;
+  engine.gravity.y=BASE_GRAVITY;
   Body.setPosition(birdBody,{x:BIRD_X,y:WORLD_GROUND/2});
   Body.setVelocity(birdBody,{x:0,y:0});
   updateScore(0);updatePowerUI();
@@ -405,7 +441,7 @@ function updatePowerUI(){
 }
 function collectCoin(coin){
   powerFrames=POWER_DURATION;
-  engine.gravity.y=0.5;
+  engine.gravity.y=0.3; // float while powered
   burstParticles(coin.wx,coin.wy,'#fbbf24',22);
   updateScore(score+3);updatePowerUI();
   playSound('coin'); playSound('powerup');
@@ -450,8 +486,53 @@ function drawGround(){
   ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(0,groundSY+14,W,6);
 }
 
+function drawCloudCeiling(){
+  const ceilSY=toScreen(CLOUD_CEILING_Y);
+  if(ceilSY>H+120) return;
+  for(let row=0;row<3;row++){
+    const yOff=ceilSY-row*22;
+    const alpha=0.55+row*0.15;
+    ctx.fillStyle='rgba(180,200,230,'+alpha+')';
+    const seed=row*137;
+    for(let cx2=-(frame%80)-seed;cx2<W+80;cx2+=55){
+      const r=28+((cx2*13+row*17)%20);
+      ctx.beginPath();ctx.arc(cx2,yOff,r,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(cx2+22,yOff-10,r*.7,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(cx2-18,yOff-8,r*.65,0,Math.PI*2);ctx.fill();
+    }
+  }
+  ctx.fillStyle='rgba(220,240,255,0.18)';
+  ctx.fillRect(0,ceilSY-8,W,20);
+}
+
+function drawPlanets(){
+  planets.forEach(p=>{
+    const sy=toScreen(p.wy);
+    if(sy<-p.r*2||sy>H+p.r*2) return;
+    p.anim+=0.005;
+    ctx.save();ctx.translate(p.wx,sy);
+    ctx.shadowColor=p.color;ctx.shadowBlur=p.r*.6;
+    const grad=ctx.createRadialGradient(-p.r*.3,-p.r*.3,p.r*.1,0,0,p.r);
+    grad.addColorStop(0,'#fff');grad.addColorStop(0.3,p.color);grad.addColorStop(1,'#000a');
+    ctx.beginPath();ctx.arc(0,0,p.r,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
+    ctx.shadowBlur=0;
+    if(p.ring){
+      ctx.save();ctx.scale(1,0.3);
+      ctx.beginPath();ctx.arc(0,0,p.r*1.6,0,Math.PI*2);
+      ctx.strokeStyle=p.color+'aa';ctx.lineWidth=p.r*.18;ctx.stroke();
+      ctx.restore();
+    }
+    ctx.globalAlpha=0.22;
+    for(let i=0;i<4;i++){
+      const a=p.anim+i*1.57;
+      ctx.beginPath();ctx.arc(Math.cos(a)*p.r*.5,Math.sin(a)*p.r*.4,p.r*.18,0,Math.PI*2);
+      ctx.fillStyle='#000';ctx.fill();
+    }
+    ctx.globalAlpha=1;ctx.restore();
+  });
+}
+
 function drawBird(){
-  if(state==='dead'&&crashFrame>0) return;
   const bsx=birdBody.position.x, bsy=toScreen(birdBody.position.y);
   if(bsy<-40||bsy>H+40) return;
   const angle=Math.max(-.5,Math.min(1.2,birdBody.velocity.y*.08));
@@ -459,12 +540,17 @@ function drawBird(){
   else { blinkOn=true; }
   if(!blinkOn) return;
   ctx.save(); ctx.translate(bsx,bsy); ctx.rotate(angle);
+  // Glow: power=gold, planet tint=planet color, normal=none
+  const tinted = planetTintFrames>0;
+  const birdColor = powerFrames>0 ? '#fbbf24' : tinted ? planetTintColor : '#f97316';
+  const wingColor = powerFrames>0 ? '#f59e0b' : tinted ? planetTintColor+'cc' : '#ea6c00';
   if(powerFrames>0){ ctx.shadowColor='#fbbf24'; ctx.shadowBlur=22; }
+  else if(tinted){ ctx.shadowColor=planetTintColor; ctx.shadowBlur=16; }
   ctx.beginPath(); ctx.arc(0,0,BIRD_R,0,Math.PI*2);
-  ctx.fillStyle=powerFrames>0?'#fbbf24':'#f97316'; ctx.fill();
+  ctx.fillStyle=birdColor; ctx.fill();
   const wo=state==='playing'?Math.sin(frame*.5)*6:0;
   ctx.beginPath(); ctx.ellipse(-7,wo,11,6,-.3,0,Math.PI*2);
-  ctx.fillStyle=powerFrames>0?'#f59e0b':'#ea6c00'; ctx.fill();
+  ctx.fillStyle=wingColor; ctx.fill();
   ctx.shadowBlur=0;
   ctx.beginPath(); ctx.arc(9,-5,5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
   ctx.beginPath(); ctx.arc(10,-5,2.5,0,Math.PI*2); ctx.fillStyle='#1a1a1a'; ctx.fill();
@@ -593,11 +679,39 @@ function loop(){
   drawBg();
 
   if(state==='playing'){
-    const spd=OBS_SPEED_BASE+Math.floor(score/10)*.3;
+    const spd=obsSpeed();
+    const pspd=planeSpeed();
+
+    // Ramp gravity with difficulty
+    if(powerFrames===0) engine.gravity.y=gravity();
+
     obstacles.forEach(o=>Body.setPosition(o.body,{x:o.body.position.x-spd,y:o.body.position.y}));
     obstacles=obstacles.filter(o=>{if(o.body.position.x<-80){World.remove(engine.world,o.body);return false;}return true;});
-    planes.forEach(pl=>{Body.setPosition(pl.body,{x:pl.body.position.x-PLANE_SPEED,y:pl.body.position.y});pl.f++;});
+    planes.forEach(pl=>{Body.setPosition(pl.body,{x:pl.body.position.x-pspd,y:pl.body.position.y});pl.f++;});
     planes=planes.filter(pl=>{if(pl.body.position.x<-120){World.remove(engine.world,pl.body);return false;}return true;});
+
+    // Move planets
+    planets.forEach(p=>{p.wx-=spd*.5;});
+    planets=planets.filter(p=>{
+      if(p.wx<-p.r-20) return false;
+      // Check bird collision with planet
+      const dx=birdBody.position.x-p.wx, dy=birdBody.position.y-p.wy;
+      if(Math.sqrt(dx*dx+dy*dy)<BIRD_R+p.r+4){
+        planetTintFrames=PLANET_TINT_DURATION;
+        planetTintColor=p.color;
+        burstParticles(p.wx,p.wy,p.color,20);
+        playSound('powerup');
+        return false; // consume planet
+      }
+      return true;
+    });
+
+    // Cloud ceiling — bounce bird back down
+    if(birdBody.position.y < CLOUD_CEILING_Y){
+      Body.setPosition(birdBody,{x:birdBody.position.x, y:CLOUD_CEILING_Y+BIRD_R+2});
+      Body.setVelocity(birdBody,{x:0, y:Math.abs(birdBody.velocity.y)*0.5+2});
+    }
+
     coins.forEach(c=>{c.wx-=spd*.9;});
     coins=coins.filter(c=>{
       if(c.wx<-20) return false;
@@ -605,17 +719,25 @@ function loop(){
       if(Math.sqrt(dx*dx+dy*dy)<BIRD_R+COIN_R+4){ collectCoin(c); return false; }
       return true;
     });
+
     if(powerFrames>0){
       powerFrames--;updatePowerUI();
-      if(powerFrames===0){ blinkOn=true;updatePowerUI(); engine.gravity.y=1.7; }
+      if(powerFrames===0){ blinkOn=true;updatePowerUI(); engine.gravity.y=gravity(); }
     }
+    if(planetTintFrames>0) planetTintFrames--;
+
     if(frame%SPAWN_INTERVAL===0) spawnObstacle();
     if(frame%PLANE_INTERVAL===0) spawnPlane();
     if(frame%COIN_INTERVAL===30) spawnCoin();
+    // Spawn planets only at altitude
+    if(frame%180===60 && birdBody.position.y<PLANET_ALTITUDE) spawnPlanet();
+
     if(frame%120===0){ updateScore(score+1); playSound('score'); }
   }
 
   drawGround();
+  drawCloudCeiling();
+  drawPlanets();
   drawObstacles(); drawPlanes(); drawCoins();
   drawSmoke(); drawParticles();
   drawBird(); drawCrash();
