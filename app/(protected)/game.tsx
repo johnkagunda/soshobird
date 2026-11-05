@@ -41,7 +41,7 @@ canvas{display:block;touch-action:none}
   <div id="ui-right"><div id="best">BEST: 0</div></div>
 </div>
 <div id="overlay">
-  <div class="bird">🐦</div>
+  <canvas id="logo" width="100" height="100" style="margin-bottom:4px"></canvas>
   <h1>SoshoBird</h1>
   <div class="info">Tap to fly &middot; Avoid planes &amp; storms<br>Grab ✨ coins for power-up!</div>
   <div class="hint">Tap to start</div>
@@ -203,13 +203,25 @@ function die(fromCrash){
 function showGameOver(){
   const ov=document.getElementById('overlay');
   ov.innerHTML=
-    '<div class="bird">💥</div>'+
+    '<canvas id="logo2" width="90" height="90" style="margin-bottom:4px"></canvas>'+
     '<h1 style="color:#ef4444">Game Over!</h1>'+
     '<div class="scoreBox"><span>Your score</span><b>'+score+'</b></div>'+
     (score>0&&score===best?'<div style="color:#fbbf24;font-weight:700;font-size:16px">🏆 New Best!</div>':'')+
     '<div class="hint">Tap to play again</div>';
   ov.classList.remove('hidden');
   state='idle';
+  // Draw cracked bird logo
+  const lc=document.getElementById('logo2');
+  if(lc){
+    const lx=lc.getContext('2d');
+    const cx=45,cy=47;
+    lx.shadowColor='#ef4444';lx.shadowBlur=14;
+    lx.beginPath();lx.arc(cx,cy,20,0,Math.PI*2);lx.fillStyle='#ef4444';lx.fill();
+    lx.shadowBlur=0;
+    lx.strokeStyle='#fff';lx.lineWidth=3;lx.lineCap='round';
+    lx.beginPath();lx.moveTo(cx-8,cy-8);lx.lineTo(cx+8,cy+8);lx.stroke();
+    lx.beginPath();lx.moveTo(cx+8,cy-8);lx.lineTo(cx-8,cy+8);lx.stroke();
+  }
 }
 
 function updateScore(n){score=n;document.getElementById('score').textContent=n;}
@@ -444,6 +456,29 @@ document.getElementById('overlay').addEventListener('touchstart',(e)=>{e.prevent
 
 resetEngine();
 loop();
+
+// ── Draw the logo bird on the overlay canvas ──────────────────
+(function drawLogo(){
+  const lc = document.getElementById('logo');
+  const lx = lc.getContext('2d');
+  const cx = 50, cy = 52;
+  // Glow
+  lx.shadowColor='#f97316'; lx.shadowBlur=18;
+  // Body
+  lx.beginPath(); lx.arc(cx,cy,22,0,Math.PI*2);
+  lx.fillStyle='#f97316'; lx.fill();
+  // Wing
+  lx.beginPath(); lx.ellipse(cx-8,cy+4,13,7,-0.3,0,Math.PI*2);
+  lx.fillStyle='#ea6c00'; lx.fill();
+  lx.shadowBlur=0;
+  // Eye white
+  lx.beginPath(); lx.arc(cx+10,cy-6,6,0,Math.PI*2); lx.fillStyle='#fff'; lx.fill();
+  // Pupil
+  lx.beginPath(); lx.arc(cx+11,cy-6,3,0,Math.PI*2); lx.fillStyle='#1a1a1a'; lx.fill();
+  // Beak
+  lx.beginPath(); lx.moveTo(cx+20,cy-2); lx.lineTo(cx+30,cy); lx.lineTo(cx+20,cy+5);
+  lx.closePath(); lx.fillStyle='#fbbf24'; lx.fill();
+})();
 </script>
 </body>
 </html>`;

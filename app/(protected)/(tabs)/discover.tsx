@@ -16,7 +16,6 @@ import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hideTabBar, showTabBar } from '@/components/AnimatedTabBar';
 import SupabaseImage from '@/components/SupabaseImage';
-
 /**
  * Fetch posts sorted by engagement (likes_count desc).
  * Top-level posts only (no replies).
@@ -34,6 +33,91 @@ async function fetchDiscoverPosts() {
     .limit(40);
   if (error) throw error;
   return data ?? [];
+}
+
+function GameCard() {
+  return (
+    <Pressable
+      onPress={() => router.push('/(protected)/game')}
+      style={({ pressed }) => ({
+        marginHorizontal: 8,
+        marginBottom: 12,
+        borderRadius: 18,
+        overflow: 'hidden',
+        backgroundColor: '#0a0a14',
+        borderWidth: 1.5,
+        borderColor: '#f97316',
+        opacity: pressed ? 0.88 : 1,
+      })}
+    >
+      {/* Sky gradient background */}
+      <View style={{
+        height: 110,
+        backgroundColor: '#060d1a',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        gap: 16,
+      }}>
+        {/* Bird icon */}
+        <View style={{
+          width: 64, height: 64, borderRadius: 32,
+          backgroundColor: '#f97316',
+          alignItems: 'center', justifyContent: 'center',
+          shadowColor: '#f97316', shadowOpacity: 0.7,
+          shadowRadius: 12, elevation: 8,
+        }}>
+          {/* Orange bird drawn with Views */}
+          <Text style={{ fontSize: 34 }}>🐦</Text>
+        </View>
+
+        {/* Text */}
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: -0.3 }}>
+              SoshoBird
+            </Text>
+            <View style={{
+              backgroundColor: '#f97316',
+              borderRadius: 6,
+              paddingHorizontal: 7,
+              paddingVertical: 2,
+            }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>GAME</Text>
+            </View>
+          </View>
+          <Text style={{ color: '#9ca3af', fontSize: 13, lineHeight: 18 }}>
+            Fly the bird · Dodge planes &amp; storms{'\n'}Grab ✨ coins for power-up!
+          </Text>
+        </View>
+
+        {/* Play button */}
+        <View style={{
+          width: 40, height: 40, borderRadius: 20,
+          backgroundColor: '#f97316',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Ionicons name="play" size={18} color="#fff" />
+        </View>
+      </View>
+
+      {/* Bottom strip */}
+      <View style={{
+        backgroundColor: '#f97316',
+        paddingVertical: 6,
+        paddingHorizontal: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+      }}>
+        <Ionicons name="game-controller-outline" size={14} color="#fff" />
+        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+          Tap to play
+        </Text>
+      </View>
+    </Pressable>
+  );
 }
 
 export default function DiscoverScreen() {
@@ -156,6 +240,9 @@ export default function DiscoverScreen() {
           Discover
         </Text>
       </View>
+
+      {/* Game banner */}
+      <GameCard />
 
       {/* 2-column grid */}
       {isLoading ? (
