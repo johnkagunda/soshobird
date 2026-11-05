@@ -1,15 +1,3 @@
-/**
- * SoshoAI — in-app chat powered by Ollama (morio-simple:latest)
- *
- * Connects directly to Ollama running on the local machine (localhost:11434).
- * Uses streaming responses so text appears word-by-word like ChatGPT.
- *
- * NOTE: On Android device / web (Render), Ollama must be accessible.
- *   • Dev (same machine): http://localhost:11434 works automatically.
- *   • Android device on same Wi-Fi: change OLLAMA_URL to your PC's local IP
- *     e.g. http://192.168.x.x:11434
- *   • Production / web: expose Ollama via a reverse proxy or ngrok.
- */
 import {
   View,
   Text,
@@ -22,10 +10,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { hideTabBar, showTabBar } from '@/components/AnimatedTabBar';
+import { useState, useRef, useCallback } from 'react';
+import { router } from 'expo-router';
 
-const OLLAMA_URL = 'http://192.168.100.30:11434';
+const OLLAMA_URL =
+  process.env.EXPO_PUBLIC_OLLAMA_URL ??
+  (Platform.OS === 'web' ? 'http://localhost:11434' : 'http://192.168.100.30:11434');
+
 const MODEL = 'morio-simple:latest';
 const ORANGE = '#f97316';
 
@@ -49,12 +40,6 @@ export default function SoshoAIScreen() {
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Hide the tab bar for a full-screen chat experience
-  useEffect(() => {
-    hideTabBar();
-    return () => showTabBar();
-  }, []);
-
   const scrollToBottom = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
@@ -65,7 +50,6 @@ export default function SoshoAIScreen() {
 
     setInput('');
 
-    // Add user message
     const userMsg: Message = { id: newId(), role: 'user', text };
     const assistantId = newId();
     const assistantMsg: Message = { id: assistantId, role: 'assistant', text: '' };
@@ -75,7 +59,6 @@ export default function SoshoAIScreen() {
     scrollToBottom();
 
     try {
-      // Build conversation history for context
       const history = [...messages, userMsg].map((m) => ({
         role: m.role,
         content: m.text,
@@ -87,20 +70,15 @@ export default function SoshoAIScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortRef.current.signal,
-        body: JSON.stringify({
-          model: MODEL,
-          messages: history,
-          stream: true,
-        }),
+        body: JSON.stringify({ model: MODEL, messages: history, stream: true }),
       });
 
       if (!response.ok) {
-        throw new Error(`Ollama error ${response.status}: ${await response.text()}`);
+        throw new Error(`Ollama error ${response.status}`);
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-
       if (!reader) throw new Error('No response body');
 
       let accumulated = '';
@@ -110,7 +88,6 @@ export default function SoshoAIScreen() {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        // Each line is a JSON object
         const lines = chunk.split('\n').filter((l) => l.trim());
 
         for (const line of lines) {
@@ -118,18 +95,13 @@ export default function SoshoAIScreen() {
             const json = JSON.parse(line);
             const token: string = json?.message?.content ?? '';
             accumulated += token;
-
-            // Update the assistant message in place
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, text: accumulated } : m
-              )
+              prev.map((m) => m.id === assistantId ? { ...m, text: accumulated } : m)
             );
           } catch {
-            // Partial JSON — ignore
+            // partial JSON — skip
           }
         }
-
         scrollToBottom();
       }
     } catch (e: any) {
@@ -138,11 +110,8 @@ export default function SoshoAIScreen() {
         e?.message?.includes('Failed to fetch') || e?.message?.includes('Network')
           ? "Can't reach Ollama. Make sure it's running on your PC."
           : e?.message ?? 'Something went wrong.';
-
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId ? { ...m, text: `⚠️ ${errText}` } : m
-        )
+        prev.map((m) => m.id === assistantId ? { ...m, text: `⚠️ ${errText}` } : m)
       );
     } finally {
       setIsStreaming(false);
@@ -157,14 +126,12 @@ export default function SoshoAIScreen() {
   const renderItem = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
     return (
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: isUser ? 'flex-end' : 'flex-start',
-          marginHorizontal: 12,
-          marginVertical: 4,
-        }}
-      >
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        marginHorizontal: 12,
+        marginVertical: 4,
+      }}>
         {!isUser && (
           <View style={{
             width: 32, height: 32, borderRadius: 16,
@@ -175,17 +142,15 @@ export default function SoshoAIScreen() {
             <Text style={{ fontSize: 16 }}>🐦</Text>
           </View>
         )}
-        <View
-          style={{
-            maxWidth: '75%',
-            backgroundColor: isUser ? ORANGE : '#1e1e1e',
-            borderRadius: 18,
-            borderBottomRightRadius: isUser ? 4 : 18,
-            borderBottomLeftRadius: isUser ? 18 : 4,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-          }}
-        >
+        <View style={{
+          maxWidth: '75%',
+          backgroundColor: isUser ? ORANGE : '#1e1e1e',
+          borderRadius: 18,
+          borderBottomRightRadius: isUser ? 4 : 18,
+          borderBottomLeftRadius: isUser ? 18 : 4,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+        }}>
           {item.text === '' && !isUser ? (
             <ActivityIndicator size="small" color={ORANGE} />
           ) : (
@@ -199,7 +164,8 @@ export default function SoshoAIScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f0f0f' }}>
+    <View style={{ flex: 1, backgroundColor: '#0f0f0f', ...(Platform.OS === 'web' ? { minHeight: '100vh' } as any : {}) }}>
+
       {/* Header */}
       <View style={{
         paddingTop: insets.top + 12,
@@ -224,42 +190,47 @@ export default function SoshoAIScreen() {
             SoshoAI
           </Text>
           <Text style={{ color: '#6b7280', fontSize: 12 }}>
-            {isStreaming ? 'Thinking...' : `${MODEL}`}
+            {isStreaming ? 'Thinking...' : MODEL}
           </Text>
         </View>
         {isStreaming && (
-          <Pressable onPress={stopStreaming} hitSlop={8}
-            style={{ backgroundColor: '#2a2a2a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+          <Pressable
+            onPress={stopStreaming}
+            hitSlop={8}
+            style={{ backgroundColor: '#2a2a2a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8 }}
           >
             <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600' }}>Stop</Text>
           </Pressable>
         )}
+        <Pressable onPress={() => router.back()} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="close" size={24} color="#6b7280" />
+        </Pressable>
       </View>
 
-      {/* Messages */}
-      <KeyboardAvoidingView
+      {/* Messages list */}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={{ paddingVertical: 12, paddingBottom: 16 }}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={scrollToBottom}
+        keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingVertical: 12, paddingBottom: 20 }}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={scrollToBottom}
-        />
+      />
 
-        {/* Input bar */}
+      {/* Input bar — pinned to bottom above keyboard */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={{
           flexDirection: 'row',
           alignItems: 'flex-end',
           gap: 10,
           paddingHorizontal: 12,
-          paddingVertical: 10,
-          paddingBottom: insets.bottom + 10,
+          paddingTop: 10,
+          paddingBottom: Math.max(insets.bottom, 16),
           backgroundColor: '#0f0f0f',
           borderTopWidth: 1,
           borderTopColor: '#2a2a2a',
@@ -294,6 +265,7 @@ export default function SoshoAIScreen() {
               backgroundColor: input.trim() && !isStreaming ? ORANGE : '#2a2a2a',
               alignItems: 'center',
               justifyContent: 'center',
+              marginBottom: 2,
             }}
           >
             <Ionicons
@@ -304,6 +276,7 @@ export default function SoshoAIScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
     </View>
   );
 }
