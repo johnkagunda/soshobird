@@ -22,7 +22,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { hideTabBar, showTabBar } from '@/components/AnimatedTabBar';
 
 const OLLAMA_URL = 'http://192.168.100.30:11434';
 const MODEL = 'morio-simple:latest';
@@ -47,6 +48,12 @@ export default function SoshoAIScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Hide the tab bar for a full-screen chat experience
+  useEffect(() => {
+    hideTabBar();
+    return () => showTabBar();
+  }, []);
 
   const scrollToBottom = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
