@@ -68,7 +68,11 @@ export default function SoshoAIScreen() {
 
       const response = await fetch(`${OLLAMA_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Required to bypass ngrok's browser interstitial page
+          'ngrok-skip-browser-warning': 'true',
+        },
         signal: abortRef.current.signal,
         body: JSON.stringify({ model: MODEL, messages: history, stream: true }),
       });
