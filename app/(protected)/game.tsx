@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/providers/AuthProvider';
+import { saveGameScore } from '@/services/game';
 
 const GAME_HTML = `<!DOCTYPE html>
 <html>
@@ -71,7 +73,7 @@ canvas{display:block;touch-action:none}
     <div id="scoreRow">
       <div id="score">0</div>
       <div id="pauseBtn" onclick="togglePause()">
-        <span id="pauseIcon">⏸</span><span id="pauseLabel">Pause</span>
+        <span id="pauseIcon">||</span><span id="pauseLabel">Pause</span>
       </div>
     </div>
     <div id="power"></div>
@@ -83,17 +85,17 @@ canvas{display:block;touch-action:none}
 <canvas id="frozen" style="position:fixed;inset:0;z-index:15;display:none"></canvas>
 
 <div id="pauseOverlay" class="hidden">
-  <span style="font-size:52px">⏸</span>
+  <span style="font-size:52px;font-weight:900;color:#f97316">II</span>
   <h2>Paused</h2>
   <p>Score: <b id="pauseScore" style="color:#fff">0</b></p>
-  <button class="pBtn resume" onclick="togglePause()">▶&nbsp; Resume</button>
-  <button class="pBtn restart" onclick="restartFromPause()">↺&nbsp; Restart</button>
+  <button class="pBtn resume" onclick="togglePause()">&#9654;&nbsp; Resume</button>
+  <button class="pBtn restart" onclick="restartFromPause()">&#8634;&nbsp; Restart</button>
 </div>
 
 <div id="overlay">
   <canvas id="logo" width="100" height="100" style="margin-bottom:4px"></canvas>
   <h1>SoshoBird</h1>
-  <div class="info">Tap to fly &middot; Avoid planes &amp; storms<br>Grab ✨ coins for power-up!</div>
+  <div class="info">Tap to fly &middot; Avoid planes &amp; storms<br>Collect coins for power-up!</div>
   <div class="hint">Tap to start</div>
 </div>
 
@@ -117,6 +119,21 @@ const BIRD_X=W*.22, BIRD_R=20, OBS_W=54;
 const COIN_R=14;
 const POWER_DURATION=180, BLINK_START=60;
 const SPAWN_INTERVAL=120, PLANE_INTERVAL=260, COIN_INTERVAL=180;
+
+// Difficulty ramps with score
+const BASE_GRAVITY   = 0.8;
+const BASE_OBS_SPEED = 1.8;
+const BASE_PLANE_SPD = 3.0;
+const MAX_GRAVITY    = 2.2;
+const MAX_OBS_SPEED  = 5.5;
+const MAX_PLANE_SPD  = 7.0;
+
+// Coins only appear after this score threshold
+const COIN_UNLOCK_SCORE = 30;
+// Obstacle spawn interval decreases as score rises (more obstacles)
+// Coin spawn interval increases at high scores (rarer)
+// At score 0-30: no coins, dense obstacles
+// At score 30+: coins appear but obstacles stay dense
 
 // Difficulty ramps with score
 const BASE_GRAVITY   = 0.8;   // slow fall at start
@@ -364,6 +381,8 @@ function crashBird(){
   playSound('crash');
   if(score>best) best=score;
   document.getElementById('best').textContent='BEST: '+best;
+  // Send score to React Native host
+  if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({type:'score',score}));
   setTimeout(showGameOver,1800);
 }
 
@@ -378,6 +397,7 @@ function die(){
   playSound('die');
   if(score>best) best=score;
   document.getElementById('best').textContent='BEST: '+best;
+  if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({type:'score',score}));
   setTimeout(showGameOver,800);
 }
 
@@ -387,7 +407,7 @@ function showGameOver(){
     '<canvas id="logo2" width="90" height="90" style="margin-bottom:4px"></canvas>'+
     '<h1 style="color:#ef4444">Game Over!</h1>'+
     '<div class="scoreBox"><span>Your score</span><b>'+score+'</b></div>'+
-    (score>0&&score===best?'<div style="color:#fbbf24;font-weight:700;font-size:16px">🏆 New Best!</div>':'')+
+    (score>0&&score===best?'<div style="color:#fbbf24;font-weight:700;font-size:16px">NEW BEST!</div>':'')+
     '<div class="hint">Tap to play again</div>';
   ov.classList.remove('hidden');
   state='idle';
@@ -423,7 +443,7 @@ function togglePause(){
     Runner.run(runner,engine);
     frozenCanvas.style.display='none';
     po.classList.add('hidden');
-    icon.textContent='⏸'; label.textContent='Pause';
+    icon.textContent='||'; label.textContent='Pause';
     pb.style.borderColor='rgba(255,255,255,0.25)';
   }
 }
@@ -437,7 +457,7 @@ function restartFromPause(){
 
 function updateScore(n){score=n;document.getElementById('score').textContent=n;}
 function updatePowerUI(){
-  document.getElementById('power').textContent=powerFrames>0?'✨ POWER: '+Math.ceil(powerFrames/60)+'s':'';
+  document.getElementById('power').textContent=powerFrames>0?'* POWER: '+Math.ceil(powerFrames/60)+'s':'';
 }
 function collectCoin(coin){
   powerFrames=POWER_DURATION;
@@ -614,7 +634,7 @@ function drawCoins(){
     ctx.shadowBlur=0;
     ctx.beginPath(); ctx.arc(0,0,COIN_R*.65,0,Math.PI*2); ctx.fillStyle='#f59e0b'; ctx.fill();
     ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(COIN_R*.9)+'px serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('✨',0,1);
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('*',0,1);
     ctx.restore();
   });
 }
@@ -726,9 +746,15 @@ function loop(){
     }
     if(planetTintFrames>0) planetTintFrames--;
 
-    if(frame%SPAWN_INTERVAL===0) spawnObstacle();
-    if(frame%PLANE_INTERVAL===0) spawnPlane();
-    if(frame%COIN_INTERVAL===30) spawnCoin();
+    // Dynamic spawn intervals — more obstacles early, coins only after score 30
+    const obsInterval = Math.max(55, 120 - Math.floor(score/5)*4); // denser as score rises
+    const planeInterval = Math.max(140, 260 - Math.floor(score/8)*10);
+    const coinInterval = 200 + Math.floor(score/20)*30; // coins get rarer as game speeds up
+
+    if(frame%obsInterval===0) spawnObstacle();
+    if(frame%planeInterval===0) spawnPlane();
+    // Coins only unlock at score 30
+    if(score>=COIN_UNLOCK_SCORE && frame%coinInterval===30) spawnCoin();
     // Spawn planets only at altitude
     if(frame%180===60 && birdBody.position.y<PLANET_ALTITUDE) spawnPlanet();
 
@@ -773,6 +799,17 @@ loop();
 
 export default function GameScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
+  const handleMessage = (event: any) => {
+    try {
+      const msg = JSON.parse(event.nativeEvent.data);
+      if (msg.type === 'score' && user && msg.score > 0) {
+        saveGameScore(user.id, msg.score).catch(console.warn);
+      }
+    } catch (_) {}
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#060d1a' }}>
       <View style={{ position: 'absolute', top: insets.top + 8, left: 12, zIndex: 100 }}>
@@ -788,7 +825,8 @@ export default function GameScreen() {
       ) : (
         <WebView source={{ html: GAME_HTML }} style={{ flex: 1 }}
           javaScriptEnabled scrollEnabled={false} bounces={false}
-          overScrollMode="never" originWhitelist={['*']} />
+          overScrollMode="never" originWhitelist={['*']}
+          onMessage={handleMessage} />
       )}
     </View>
   );

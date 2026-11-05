@@ -3,6 +3,7 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import PostListItem from '@/components/PostListItem';
+import GamePostCard from '@/components/GamePostCard';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPosts } from '@/services/posts';
 import { router } from 'expo-router';
@@ -86,6 +87,7 @@ export default function HomeScreen() {
           data={data ?? []}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <PostListItem post={item} />}
+          ListHeaderComponent={() => <GamePostCard />}
           onRefresh={refetch}
           refreshing={isRefetching}
           showsVerticalScrollIndicator={false}

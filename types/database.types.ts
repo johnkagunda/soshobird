@@ -34,6 +34,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      game_scores: {
+        Row: {
+          id: string
+          user_id: string
+          score: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          score: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          score?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_scores_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -173,6 +202,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          best_game_score: number
           bio: string | null
           created_at: string
           followers_count: number
@@ -188,6 +218,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          best_game_score?: number
           bio?: string | null
           created_at?: string
           followers_count?: number
@@ -203,6 +234,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          best_game_score?: number
           bio?: string | null
           created_at?: string
           followers_count?: number
