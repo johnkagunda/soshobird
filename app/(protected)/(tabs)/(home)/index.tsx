@@ -56,7 +56,14 @@ export default function HomeScreen() {
             resizeMode="contain"
           />
         </View>
-        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+        <View style={{ flex: 1, alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+          <Pressable
+            onPress={() => router.push('/(protected)/game')}
+            hitSlop={10}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name="game-controller-outline" size={22} color="#f97316" />
+          </Pressable>
           <Pressable
             onPress={() => router.push('/(protected)/(tabs)/(home)/search')}
             hitSlop={10}
