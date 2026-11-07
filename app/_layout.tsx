@@ -56,7 +56,6 @@ function RootStack() {
         name="game"
         options={{
           headerShown: false,
-          presentation: 'fullScreenModal',
           animation: 'slide_from_bottom',
         }}
       />
