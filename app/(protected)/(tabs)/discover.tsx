@@ -39,7 +39,7 @@ async function fetchDiscoverPosts() {
 function GameCard() {
   return (
     <Pressable
-      onPress={() => router.push('/(protected)/game')}
+      onPress={() => router.push('/game')}
       style={({ pressed }) => ({
         marginHorizontal: 8,
         marginBottom: 12,

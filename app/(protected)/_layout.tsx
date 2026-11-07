@@ -24,14 +24,6 @@ export default function ProtectedLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name='game'
-        options={{
-          headerShown: false,
-          presentation: 'fullScreenModal',
-          animation: 'slide_from_bottom',
-        }}
-      />
     </Stack>
   )
 }

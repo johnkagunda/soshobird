@@ -59,7 +59,7 @@ export default function HomeScreen() {
         </View>
         <View style={{ flex: 1, alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
           <Pressable
-            onPress={() => router.push('/(protected)/game')}
+            onPress={() => router.push('/game')}
             hitSlop={10}
             style={{ padding: 4 }}
           >

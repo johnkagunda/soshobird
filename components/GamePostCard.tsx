@@ -21,7 +21,7 @@ export default function GamePostCard() {
 
   return (
     <Pressable
-      onPress={() => router.push('/(protected)/game')}
+      onPress={() => router.push('/game')}
       style={styles.card}
     >
       {/* Author row */}
@@ -57,7 +57,7 @@ export default function GamePostCard() {
 
       {/* Game preview banner */}
       <Pressable
-        onPress={() => router.push('/(protected)/game')}
+        onPress={() => router.push('/game')}
         style={styles.banner}
       >
         <View style={styles.bannerLeft}>
@@ -89,7 +89,7 @@ export default function GamePostCard() {
         </Pressable>
 
         <Pressable
-          onPress={(e) => { e.stopPropagation(); router.push('/(protected)/game'); }}
+          onPress={(e) => { e.stopPropagation(); router.push('/game'); }}
           style={styles.action}
         >
           <Ionicons name="chatbubble-outline" size={19} color="#6b7280" />
@@ -97,10 +97,7 @@ export default function GamePostCard() {
         </Pressable>
 
         <Pressable
-          onPress={(e) => {
-            e.stopPropagation();
-            router.push('/(protected)/game');
-          }}
+          onPress={(e) => { e.stopPropagation(); router.push('/game'); }}
           style={styles.action}
         >
           <Feather name="award" size={19} color="#6b7280" />

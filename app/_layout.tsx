@@ -1,6 +1,5 @@
 import '../globals.css';
-
-import { Slot } from 'expo-router';
+import { Stack } from 'expo-router';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,11 +31,11 @@ export default function RootLayout() {
                 {Platform.OS === 'web' ? (
                   <View style={styles.webOuter}>
                     <View style={styles.webInner}>
-                      <Slot />
+                      <RootStack />
                     </View>
                   </View>
                 ) : (
-                  <Slot />
+                  <RootStack />
                 )}
               </NotificationsProvider>
             </NotificationBannerProvider>
@@ -44,6 +43,25 @@ export default function RootLayout() {
         </QueryClientProvider>
       </ThemeProvider>
     </RootSiblingParent>
+  );
+}
+
+function RootStack() {
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(protected)" />
+      <Stack.Screen name="auth" />
+      <Stack.Screen
+        name="game"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen name="+not-found" />
+    </Stack>
   );
 }
 
@@ -56,9 +74,8 @@ const styles = StyleSheet.create({
   webInner: {
     flex: 1,
     width: '100%',
-    maxWidth: 430,       // iPhone 14 Pro Max width
+    maxWidth: 430,
     backgroundColor: '#0f0f0f',
-    // Subtle shadow so it looks lifted from the background
     shadowColor: '#f97316',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
